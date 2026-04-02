@@ -1,0 +1,51 @@
+:root {
+  --bg-deep: rgb(42, 24, 69);
+  --bg-night: rgb(64, 50, 114);
+  --bg-cloud: rgb(69, 108, 151);
+  --ink-soft: rgb(245, 239, 232);
+  --ink-muted: rgb(194, 181, 206);
+  --gold: rgb(245, 199, 85);
+  --pearl: rgb(250, 244, 236);
+  --coral: rgb(236, 129, 109);
+  --sky: rgb(69, 170, 169);
+  --rose: rgb(176, 109, 148);
+  --berry: rgb(218, 66, 128);
+  --plum: rgb(108, 64, 134);
+  --violet: rgb(130, 111, 171);
+  --mint: rgb(127, 175, 170);
+  --sand: rgb(217, 178, 130);
+  --paper: rgb(246, 237, 221);
+  --paper-deep: rgb(238, 225, 203);
+  --panel: rgba(42, 24, 69, 0.86);
+  --panel-border: rgba(130, 111, 171, 0.22);
+  --shadow-soft: 0 22px 64px rgba(20, 10, 33, 0.34);
+  --radius-xl: 32px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(217, 178, 130, 0.12), transparent 22%),
+    radial-gradient(circle at 82% 10%, rgba(176, 109, 148, 0.11), transparent 20%),
+    radial-gradient(circle at 50% 100%, rgba(127, 175, 170, 0.1), transparent 26%),
+    linear-gradient(180deg, rgb(42, 24, 69) 0%, rgb(26, 16, 45) 100%);
+  color: var(--ink-soft);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+button,
+textarea {
+  font: inherit;
+}
