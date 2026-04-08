@@ -23,6 +23,150 @@
   gap: 12px;
 }
 
+.app-shell[data-surface="journal"] {
+  --shadow-soft: 0 24px 60px rgba(87, 48, 69, 0.18);
+}
+
+.app-shell[data-surface="journal"] .top-toolbar {
+  border-color: rgba(214, 151, 163, 0.22);
+  background:
+    linear-gradient(180deg, rgba(174, 104, 113, 0.16), rgba(123, 65, 95, 0.28)),
+    radial-gradient(circle at 14% 0%, rgba(251, 201, 104, 0.12), transparent 24%),
+    rgb(107, 61, 93);
+  box-shadow:
+    0 16px 42px rgba(87, 48, 69, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.app-shell[data-surface="journal"] .brand-mark {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 247, 229, 0.18), transparent 44%),
+    linear-gradient(135deg, rgba(244, 137, 131, 0.44), rgba(176, 109, 148, 0.28)),
+    rgb(131, 77, 115);
+  border-color: rgba(239, 218, 172, 0.26);
+}
+
+.app-shell[data-surface="journal"] .brand-copy .eyebrow,
+.app-shell[data-surface="journal"] .toolbar-trail-link {
+  color: color-mix(in srgb, var(--paper-ui) 86%, rgb(251, 201, 104));
+}
+
+.app-shell[data-surface="journal"] .toolbar-trail-current,
+.app-shell[data-surface="journal"] .brand-copy strong,
+.app-shell[data-surface="journal"] .sky-rail-summary {
+  color: color-mix(in srgb, var(--paper-ui) 78%, rgb(239, 218, 172));
+}
+
+.app-shell[data-surface="journal"] .toolbar-trail-separator {
+  color: rgba(252, 228, 199, 0.7);
+}
+
+.app-shell[data-surface="journal"] .toolbar-button {
+  border-color: rgba(239, 218, 172, 0.16);
+  background: rgba(255, 245, 228, 0.18);
+  color: color-mix(in srgb, var(--paper-ui) 88%, rgb(255, 228, 203));
+  box-shadow: 0 6px 14px rgba(87, 48, 69, 0.12);
+}
+
+.app-shell[data-surface="journal"] .toolbar-button-violet {
+  background: rgba(123, 65, 95, 0.82);
+  border-color: rgba(214, 151, 163, 0.18);
+}
+
+.app-shell[data-surface="journal"] .toolbar-button-help,
+.app-shell[data-surface="journal"] .toolbar-button-sky,
+.app-shell[data-surface="journal"] .toolbar-button-ghost {
+  background: rgba(131, 190, 186, 0.18);
+  border-color: rgba(131, 190, 186, 0.2);
+  color: color-mix(in srgb, var(--paper-ui) 86%, rgb(239, 218, 172));
+}
+
+.app-shell[data-surface="journal"] .toolbar-button-primary {
+  background: rgba(244, 137, 131, 0.94);
+  border-color: rgba(244, 137, 131, 0.3);
+  color: rgb(76, 38, 52);
+}
+
+.app-shell[data-surface="journal"] .toolbar-button-gold {
+  background: rgba(251, 201, 104, 0.94);
+  border-color: rgba(251, 201, 104, 0.28);
+  color: rgb(76, 38, 52);
+}
+
+.app-shell[data-surface="journal"] .sky-rail {
+  border-color: rgba(214, 151, 163, 0.18);
+  background:
+    linear-gradient(180deg, rgba(174, 104, 113, 0.18), rgba(123, 65, 95, 0.94)),
+    radial-gradient(circle at 20% 0%, rgba(251, 201, 104, 0.08), transparent 22%),
+    rgba(123, 65, 95, 0.9);
+  box-shadow: 0 22px 52px rgba(87, 48, 69, 0.18);
+}
+
+.app-shell[data-surface="journal"] .sky-tab-rail {
+  background:
+    linear-gradient(135deg, rgba(255, 236, 214, 0.14), rgba(255, 190, 186, 0.08)),
+    rgba(130, 91, 133, 0.92);
+  border-color: rgba(239, 218, 172, 0.14);
+}
+
+.app-shell[data-surface="journal"] .sky-tab-active {
+  background: rgba(176, 109, 148, 0.9);
+  border-color: rgba(251, 201, 104, 0.24);
+}
+
+.app-shell[data-surface="journal"] .sky-tab-copy span {
+  color: rgba(248, 229, 209, 0.78);
+}
+
+.app-shell[data-surface="journal"] .sky-tab-menu-button {
+  background: rgba(89, 49, 82, 0.94);
+  border-color: rgba(239, 218, 172, 0.14);
+}
+
+.app-shell[data-surface="journal"] .sky-tab-menu {
+  border-color: rgba(214, 151, 163, 0.22);
+  background:
+    linear-gradient(180deg, rgba(144, 87, 118, 0.96), rgba(107, 61, 93, 0.98)),
+    radial-gradient(circle at 10% 0%, rgba(251, 201, 104, 0.08), transparent 28%),
+    rgb(107, 61, 93);
+}
+
+.app-shell[data-surface="journal"] .journal-shell::before {
+  inset: 0;
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(251, 201, 104, 0.12), transparent 18%),
+    radial-gradient(circle at 84% 10%, rgba(244, 137, 131, 0.12), transparent 18%),
+    linear-gradient(180deg, rgba(176, 109, 148, 0.12), rgba(123, 65, 95, 0.06));
+}
+
+.app-shell[data-surface="journal"] .journal-header h1 {
+  color: rgb(248, 233, 204);
+  text-shadow:
+    0 1px 0 rgba(255, 249, 240, 0.12),
+    0 0 18px rgba(251, 201, 104, 0.08);
+}
+
+.app-shell[data-surface="journal"] .journal-copy,
+.app-shell[data-surface="journal"] .journal-header .panel-label {
+  color: rgba(247, 228, 206, 0.76);
+}
+
+.app-shell[data-surface="journal"] .journal-list-card,
+.app-shell[data-surface="journal"] .journal-detail-card {
+  border-color: rgba(214, 151, 163, 0.18);
+  box-shadow:
+    0 20px 42px rgba(87, 48, 69, 0.12),
+    inset 0 1px 0 rgba(255, 252, 244, 0.72);
+}
+
+.app-shell[data-surface="journal"] .storage-notice {
+  border-color: rgba(214, 151, 163, 0.18);
+  background:
+    linear-gradient(180deg, rgba(251, 201, 104, 0.08), rgba(123, 65, 95, 0.54)),
+    rgba(123, 65, 95, 0.72);
+}
+
 .eyebrow,
 .panel-label,
 .editor-label {
@@ -35,10 +179,10 @@
 }
 
 .top-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  justify-content: space-between;
   min-height: 66px;
   padding: 11px 16px;
   border: 1px solid rgba(130, 111, 171, 0.24);
@@ -88,13 +232,14 @@
 
 .brand-copy .eyebrow {
   margin-bottom: 0;
+  font-family: var(--font-brand);
   font-size: 1rem;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   color: color-mix(in srgb, var(--pearl) 82%, var(--accent-sand));
 }
 
 .brand-copy strong {
-  font-family: "Palatino Linotype", "Book Antiqua", serif;
+  font-family: var(--font-ui);
   font-size: 0.68rem;
   font-weight: 600;
   color: color-mix(in srgb, var(--ink-muted) 80%, var(--paper-ui));
@@ -106,6 +251,27 @@
   gap: 14px;
   flex: 1;
   min-height: 0;
+}
+
+.storage-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(217, 178, 130, 0.22);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(217, 178, 130, 0.1), rgba(42, 24, 69, 0.78)),
+    rgba(42, 24, 69, 0.86);
+  box-shadow: 0 12px 28px rgba(20, 10, 33, 0.16);
+}
+
+.storage-notice p {
+  margin: 0;
+  color: color-mix(in srgb, var(--pearl) 88%, var(--accent-sand));
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .surface-shell {
@@ -128,6 +294,10 @@
     radial-gradient(circle at 20% 0%, rgba(217, 178, 130, 0.06), transparent 22%),
     rgba(42, 24, 69, 0.82);
   box-shadow: var(--shadow-soft);
+  position: sticky;
+  top: 8px;
+  align-self: start;
+  max-height: calc(100vh - 16px);
 }
 
 .sky-rail-head {
@@ -148,7 +318,7 @@
 }
 
 .sky-rail-head strong {
-  font-family: "Palatino Linotype", "Book Antiqua", serif;
+  font-family: var(--font-display);
   font-size: 0.96rem;
   font-weight: 600;
   color: color-mix(in srgb, var(--pearl) 78%, var(--accent-sand));
@@ -184,11 +354,24 @@
   align-content: start;
   gap: 8px;
   padding-right: 2px;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(176, 109, 148, 0.6) rgba(42, 24, 69, 0.24);
 }
 
 .sky-rail-list::-webkit-scrollbar {
-  display: none;
+  width: 8px;
+}
+
+.sky-rail-list::-webkit-scrollbar-track {
+  background: rgba(42, 24, 69, 0.24);
+  border-radius: 999px;
+}
+
+.sky-rail-list::-webkit-scrollbar-thumb {
+  background: rgba(176, 109, 148, 0.58);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .sky-tabs-wrap,
@@ -204,9 +387,63 @@
 }
 
 .toolbar-actions {
-  margin-left: auto;
+  margin-left: 0;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.toolbar-trail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 10px;
+  text-align: center;
+}
+
+.toolbar-trail-link,
+.toolbar-trail-current {
+  min-width: 0;
+  font-family: var(--font-brand);
+  font-size: 1.02rem;
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-trail-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--paper-ui) 86%, var(--accent-sand));
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toolbar-trail-link:hover:not(:disabled) {
+  color: color-mix(in srgb, var(--paper-ui) 80%, var(--accent-coral));
+}
+
+.toolbar-trail-link:disabled {
+  cursor: default;
+}
+
+.toolbar-trail-link-static {
+  color: color-mix(in srgb, var(--paper-ui) 86%, var(--accent-sand));
+}
+
+.toolbar-trail-separator {
+  color: color-mix(in srgb, var(--ink-muted) 68%, var(--accent-sand));
+  font-size: 0.82rem;
+}
+
+.toolbar-trail-current {
+  color: color-mix(in srgb, var(--ink-muted) 82%, var(--paper-ui));
+  font-size: 0.94rem;
+  font-weight: 400;
 }
 
 .sky-tabs-wrap {
@@ -329,6 +566,7 @@
 }
 
 .sky-tab-copy strong {
+  font-family: var(--font-ui);
   font-size: 0.79rem;
   font-weight: 700;
   color: inherit;
@@ -442,8 +680,28 @@
   --tab-accent: rgb(119, 239, 242);
 }
 
+.sky-tab[data-theme="gaia"] {
+  --tab-accent: rgb(64, 173, 227);
+}
+
+.sky-tab[data-theme="rings"] {
+  --tab-accent: rgb(217, 178, 130);
+}
+
+.sky-tab[data-theme="venus"] {
+  --tab-accent: rgb(236, 129, 109);
+}
+
+.sky-tab[data-theme="mercury"] {
+  --tab-accent: rgb(245, 199, 85);
+}
+
 .sky-tab[data-theme="eclipse"] {
   --tab-accent: rgb(237, 120, 218);
+}
+
+.sky-tab[data-theme="abyss"] {
+  --tab-accent: rgb(127, 175, 170);
 }
 
 .toolbar-button,
@@ -571,15 +829,17 @@
   gap: 12px;
   flex: 1;
   min-height: 0;
+  align-items: start;
 }
 
 .journal-shell {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   flex: 1;
   min-height: 0;
   position: relative;
-  padding: 2px 0 0;
+  padding: 16px 0 0;
   isolation: isolate;
 }
 
@@ -601,7 +861,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px 14px;
-  padding: 2px 4px 0;
+  padding: 10px 22px 0;
 }
 
 .journal-header > div:first-child {
@@ -627,9 +887,9 @@
 
 .journal-header h1 {
   margin: 0;
-  font-family: "Palatino Linotype", "Book Antiqua", "Baskerville Old Face", serif;
+  font-family: var(--font-display);
   font-size: clamp(1.42rem, 1.9vw, 1.96rem);
-  font-style: italic;
+  font-style: normal;
   font-weight: 700;
   line-height: 0.98;
   letter-spacing: 0.01em;
@@ -660,18 +920,25 @@
   display: grid;
   grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
   gap: 14px;
-  min-height: 0;
+  min-height: var(--stage-height);
+  height: 100%;
+  align-items: stretch;
 }
 
 .sky-frame,
 .inspector-panel {
   min-height: 0;
+  height: auto;
+  max-height: none;
 }
 
 .sky-frame {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 6px;
+  position: sticky;
+  top: 8px;
+  align-self: start;
 }
 
 .sky-header {
@@ -699,11 +966,9 @@
   flex-wrap: wrap;
 }
 
-.sky-header strong,
-.inspector-card h2,
-.overlay-card h2 {
+.sky-header strong {
   margin: 0;
-  font-family: "Palatino Linotype", "Book Antiqua", serif;
+  font-family: var(--font-brand);
   font-weight: 600;
 }
 
@@ -850,6 +1115,11 @@
   --nebula-c-top: 58%;
   --nebula-c-width: 48%;
   --nebula-c-height: 32%;
+  --moon-shadow-color: rgba(6, 14, 30, 0.92);
+  --moon-shadow-soft: rgba(10, 22, 44, 0.5);
+  --meditation-ink: rgba(244, 240, 255, 0.56);
+  --meditation-halo: rgba(119, 239, 242, 0.1);
+  --meditation-shadow: rgba(3, 6, 18, 0.48);
 }
 
 .sky-panel[data-theme="night"] {
@@ -861,6 +1131,14 @@
   --veil: rgba(119, 239, 242, 0.08);
   --mote-color: rgba(235, 240, 113, 0.12);
   --shooting-color: rgba(255, 201, 133, 0.92);
+  --moon-shadow-color: rgba(8, 26, 58, 0.9);
+  --moon-shadow-soft: rgba(20, 62, 173, 0.26);
+  --meditation-ink: rgba(242, 247, 255, 0.58);
+  --meditation-halo: rgba(119, 239, 242, 0.16);
+}
+
+.sky-panel[data-theme="night"] .sky-orbital-body-moon {
+  opacity: 0.34;
 }
 
 .sky-panel[data-theme="rose"] {
@@ -872,6 +1150,8 @@
   --veil: rgba(255, 180, 209, 0.07);
   --mote-color: rgba(255, 201, 133, 0.14);
   --shooting-color: rgba(255, 180, 209, 0.92);
+  --meditation-ink: rgba(255, 230, 239, 0.56);
+  --meditation-halo: rgba(255, 180, 209, 0.14);
   --nebula-a-left: 12%;
   --nebula-a-top: 18%;
   --nebula-a-width: 36%;
@@ -895,6 +1175,8 @@
   --veil: rgba(255, 201, 133, 0.1);
   --mote-color: rgba(255, 201, 133, 0.14);
   --shooting-color: rgba(255, 201, 133, 0.94);
+  --meditation-ink: rgba(255, 241, 222, 0.58);
+  --meditation-halo: rgba(255, 201, 133, 0.16);
   --nebula-a-left: -2%;
   --nebula-a-top: 58%;
   --nebula-a-width: 54%;
@@ -909,6 +1191,12 @@
   --nebula-c-height: 20%;
 }
 
+.sky-panel[data-theme="dawn"] .sky-photo-main {
+  opacity: 0.2;
+  background-image: url("/sky-assets/milkyway-soft.jpg");
+  background-position: center 18%;
+}
+
 .sky-panel[data-theme="aurora"] {
   --sky-top: rgb(8, 47, 100);
   --sky-bottom: rgb(42, 24, 69);
@@ -918,6 +1206,8 @@
   --veil: rgba(119, 239, 242, 0.1);
   --mote-color: rgba(119, 239, 242, 0.16);
   --shooting-color: rgba(119, 239, 242, 0.92);
+  --meditation-ink: rgba(229, 247, 244, 0.54);
+  --meditation-halo: rgba(119, 239, 242, 0.18);
   --nebula-a-left: 4%;
   --nebula-a-top: 16%;
   --nebula-a-width: 28%;
@@ -932,6 +1222,13 @@
   --nebula-c-height: 50%;
 }
 
+.sky-panel[data-theme="aurora"] .sky-photo-main {
+  opacity: 0.1;
+  background-image: url("/sky-assets/aurora-bloom.jpg");
+  background-position: center 34%;
+  filter: saturate(0.78) brightness(0.9);
+}
+
 .sky-panel[data-theme="midnight"] {
   --sky-top: rgb(10, 22, 52);
   --sky-bottom: rgb(3, 8, 24);
@@ -941,6 +1238,10 @@
   --veil: rgba(64, 173, 227, 0.05);
   --mote-color: rgba(235, 240, 113, 0.08);
   --shooting-color: rgba(235, 240, 113, 0.82);
+  --moon-shadow-color: rgba(2, 8, 22, 0.92);
+  --moon-shadow-soft: rgba(64, 173, 227, 0.14);
+  --meditation-ink: rgba(233, 240, 255, 0.54);
+  --meditation-halo: rgba(64, 173, 227, 0.12);
   --nebula-a-left: 8%;
   --nebula-a-top: 18%;
   --nebula-a-width: 28%;
@@ -955,6 +1256,15 @@
   --nebula-c-height: 18%;
 }
 
+.sky-panel[data-theme="midnight"] .sky-orbital-body-moon {
+  top: 7%;
+  right: auto;
+  left: 6%;
+  width: clamp(82px, 11vw, 132px);
+  opacity: 0.2;
+  transform: rotate(6deg);
+}
+
 .sky-panel[data-theme="ember"] {
   --sky-top: rgb(72, 18, 40);
   --sky-bottom: rgb(18, 7, 23);
@@ -964,6 +1274,8 @@
   --veil: rgba(255, 180, 209, 0.05);
   --mote-color: rgba(255, 201, 133, 0.11);
   --shooting-color: rgba(255, 201, 133, 0.88);
+  --meditation-ink: rgba(255, 230, 218, 0.56);
+  --meditation-halo: rgba(255, 201, 133, 0.12);
   --nebula-a-left: 6%;
   --nebula-a-top: 10%;
   --nebula-a-width: 30%;
@@ -978,6 +1290,17 @@
   --nebula-c-height: 26%;
 }
 
+.sky-panel[data-theme="ember"] .sky-orbital-body-jupiter {
+  opacity: 0.62;
+  top: 8%;
+  right: 4%;
+  width: clamp(146px, 24vw, 270px);
+  aspect-ratio: 1;
+  background-image: url("/sky-assets/jupiter-pastel.png");
+  mix-blend-mode: screen;
+  filter: saturate(0.96) brightness(0.92) drop-shadow(0 0 26px rgba(255, 201, 133, 0.12));
+}
+
 .sky-panel[data-theme="lagoon"] {
   --sky-top: rgb(6, 54, 71);
   --sky-bottom: rgb(7, 23, 48);
@@ -987,6 +1310,8 @@
   --veil: rgba(119, 239, 242, 0.08);
   --mote-color: rgba(119, 239, 242, 0.13);
   --shooting-color: rgba(119, 239, 242, 0.88);
+  --meditation-ink: rgba(229, 246, 246, 0.56);
+  --meditation-halo: rgba(119, 239, 242, 0.16);
   --nebula-a-left: 4%;
   --nebula-a-top: 20%;
   --nebula-a-width: 32%;
@@ -1001,6 +1326,168 @@
   --nebula-c-height: 26%;
 }
 
+.sky-panel[data-theme="lagoon"] .sky-photo-main {
+  opacity: 0.14;
+  background-image: url("/sky-assets/lagoon-field.jpg");
+  background-position: center 22%;
+  filter: saturate(0.82) brightness(0.94);
+}
+
+.sky-panel[data-theme="lagoon"] .sky-orbital-body-neptune {
+  opacity: 0.56;
+  top: 10%;
+  right: 6%;
+  width: clamp(108px, 16vw, 188px);
+  aspect-ratio: 2;
+  background-image: url("/sky-assets/neptune-clean.png");
+  mix-blend-mode: normal;
+  filter: saturate(0.96) brightness(0.98) drop-shadow(0 0 18px rgba(119, 239, 242, 0.08));
+}
+
+.sky-panel[data-theme="gaia"] {
+  --sky-top: rgb(8, 26, 58);
+  --sky-bottom: rgb(2, 8, 22);
+  --glow-a: rgba(64, 173, 227, 0.18);
+  --glow-b: rgba(127, 175, 170, 0.14);
+  --glow-c: rgba(217, 178, 130, 0.06);
+  --veil: rgba(64, 173, 227, 0.06);
+  --mote-color: rgba(127, 175, 170, 0.09);
+  --shooting-color: rgba(119, 239, 242, 0.82);
+  --meditation-ink: rgba(237, 242, 231, 0.56);
+  --meditation-halo: rgba(127, 175, 170, 0.14);
+  --nebula-a-left: 10%;
+  --nebula-a-top: 12%;
+  --nebula-a-width: 24%;
+  --nebula-a-height: 16%;
+  --nebula-b-left: 58%;
+  --nebula-b-top: 10%;
+  --nebula-b-width: 20%;
+  --nebula-b-height: 16%;
+  --nebula-c-left: 34%;
+  --nebula-c-top: 64%;
+  --nebula-c-width: 28%;
+  --nebula-c-height: 18%;
+}
+
+.sky-panel[data-theme="gaia"] .sky-orbital-body-earth {
+  opacity: 0.84;
+  left: 44%;
+  bottom: -18%;
+  width: clamp(320px, 58vw, 760px);
+  aspect-ratio: 1.8;
+  background-image: url("/sky-assets/earth-horizon-clean.png");
+  mix-blend-mode: screen;
+  filter: saturate(0.94) brightness(0.95) drop-shadow(0 0 28px rgba(119, 239, 242, 0.12));
+}
+
+.sky-panel[data-theme="rings"] {
+  --sky-top: rgb(26, 14, 34);
+  --sky-bottom: rgb(4, 4, 12);
+  --glow-a: rgba(217, 178, 130, 0.16);
+  --glow-b: rgba(130, 111, 171, 0.12);
+  --glow-c: rgba(64, 173, 227, 0.07);
+  --veil: rgba(217, 178, 130, 0.05);
+  --mote-color: rgba(217, 178, 130, 0.1);
+  --shooting-color: rgba(245, 199, 85, 0.84);
+  --meditation-ink: rgba(244, 232, 220, 0.55);
+  --meditation-halo: rgba(217, 178, 130, 0.12);
+  --nebula-a-left: 6%;
+  --nebula-a-top: 16%;
+  --nebula-a-width: 20%;
+  --nebula-a-height: 18%;
+  --nebula-b-left: 56%;
+  --nebula-b-top: 12%;
+  --nebula-b-width: 18%;
+  --nebula-b-height: 16%;
+  --nebula-c-left: 26%;
+  --nebula-c-top: 64%;
+  --nebula-c-width: 30%;
+  --nebula-c-height: 20%;
+}
+
+.sky-panel[data-theme="rings"] .sky-orbital-body-saturn {
+  opacity: 0.76;
+  top: 8%;
+  right: 4%;
+  width: clamp(170px, 27vw, 320px);
+  aspect-ratio: 1;
+  background-image: url("/sky-assets/saturn-clean.png");
+  mix-blend-mode: screen;
+  filter: saturate(0.94) brightness(0.95) drop-shadow(0 0 24px rgba(217, 178, 130, 0.1));
+}
+
+.sky-panel[data-theme="venus"] {
+  --sky-top: rgb(46, 17, 38);
+  --sky-bottom: rgb(10, 6, 18);
+  --glow-a: rgba(236, 129, 109, 0.16);
+  --glow-b: rgba(255, 201, 133, 0.15);
+  --glow-c: rgba(176, 109, 148, 0.08);
+  --veil: rgba(255, 201, 133, 0.05);
+  --mote-color: rgba(255, 201, 133, 0.12);
+  --shooting-color: rgba(255, 201, 133, 0.9);
+  --meditation-ink: rgba(255, 233, 221, 0.56);
+  --meditation-halo: rgba(236, 129, 109, 0.12);
+  --nebula-a-left: 8%;
+  --nebula-a-top: 14%;
+  --nebula-a-width: 26%;
+  --nebula-a-height: 20%;
+  --nebula-b-left: 60%;
+  --nebula-b-top: 12%;
+  --nebula-b-width: 20%;
+  --nebula-b-height: 16%;
+  --nebula-c-left: 24%;
+  --nebula-c-top: 66%;
+  --nebula-c-width: 30%;
+  --nebula-c-height: 18%;
+}
+
+.sky-panel[data-theme="venus"] .sky-orbital-body-venus {
+  opacity: 0.7;
+  top: 12%;
+  left: 4%;
+  width: clamp(126px, 18vw, 210px);
+  aspect-ratio: 1;
+  background-image: url("/sky-assets/venus-clean.png");
+  mix-blend-mode: normal;
+  filter: saturate(0.92) brightness(0.98) drop-shadow(0 0 22px rgba(255, 201, 133, 0.08));
+}
+
+.sky-panel[data-theme="mercury"] {
+  --sky-top: rgb(18, 14, 32);
+  --sky-bottom: rgb(4, 6, 14);
+  --glow-a: rgba(245, 199, 85, 0.12);
+  --glow-b: rgba(69, 108, 151, 0.09);
+  --glow-c: rgba(217, 178, 130, 0.05);
+  --veil: rgba(245, 199, 85, 0.03);
+  --mote-color: rgba(217, 178, 130, 0.08);
+  --shooting-color: rgba(245, 199, 85, 0.82);
+  --meditation-ink: rgba(239, 229, 216, 0.54);
+  --meditation-halo: rgba(245, 199, 85, 0.1);
+  --nebula-a-left: 10%;
+  --nebula-a-top: 18%;
+  --nebula-a-width: 22%;
+  --nebula-a-height: 16%;
+  --nebula-b-left: 62%;
+  --nebula-b-top: 14%;
+  --nebula-b-width: 16%;
+  --nebula-b-height: 14%;
+  --nebula-c-left: 32%;
+  --nebula-c-top: 68%;
+  --nebula-c-width: 24%;
+  --nebula-c-height: 16%;
+}
+
+.sky-panel[data-theme="mercury"] .sky-orbital-body-mercury {
+  opacity: 0.56;
+  top: 11%;
+  right: 7%;
+  width: clamp(92px, 13vw, 148px);
+  aspect-ratio: 0.94;
+  background-image: url("/sky-assets/mercury-half.png");
+  mix-blend-mode: screen;
+  filter: saturate(0.9) brightness(0.92) drop-shadow(0 0 18px rgba(245, 199, 85, 0.08));
+}
+
 .sky-panel[data-theme="eclipse"] {
   --sky-top: rgb(30, 18, 58);
   --sky-bottom: rgb(4, 4, 14);
@@ -1010,6 +1497,10 @@
   --veil: rgba(237, 120, 218, 0.06);
   --mote-color: rgba(255, 180, 209, 0.1);
   --shooting-color: rgba(255, 180, 209, 0.86);
+  --moon-shadow-color: rgba(22, 10, 42, 0.92);
+  --moon-shadow-soft: rgba(182, 47, 191, 0.14);
+  --meditation-ink: rgba(245, 229, 247, 0.56);
+  --meditation-halo: rgba(237, 120, 218, 0.15);
   --nebula-a-left: 10%;
   --nebula-a-top: 14%;
   --nebula-a-width: 26%;
@@ -1024,11 +1515,67 @@
   --nebula-c-height: 24%;
 }
 
+.sky-panel[data-theme="eclipse"] .sky-orbital-body-moon {
+  top: auto;
+  bottom: -10%;
+  right: -4%;
+  width: clamp(136px, 19vw, 210px);
+  opacity: 0.2;
+  transform: rotate(-14deg);
+}
+
+.sky-panel[data-theme="eclipse"] .sky-photo-main {
+  opacity: 0.12;
+  background-image: url("/sky-assets/eclipse-cloud.jpg");
+  background-position: center 28%;
+  filter: saturate(0.8) brightness(0.9);
+}
+
+.sky-panel[data-theme="abyss"] {
+  --sky-top: rgb(5, 16, 34);
+  --sky-bottom: rgb(1, 4, 12);
+  --glow-a: rgba(69, 170, 169, 0.14);
+  --glow-b: rgba(69, 108, 151, 0.12);
+  --glow-c: rgba(217, 178, 130, 0.05);
+  --veil: rgba(127, 175, 170, 0.04);
+  --mote-color: rgba(127, 175, 170, 0.08);
+  --shooting-color: rgba(119, 239, 242, 0.72);
+  --meditation-ink: rgba(220, 236, 237, 0.5);
+  --meditation-halo: rgba(69, 170, 169, 0.1);
+  --nebula-a-left: 12%;
+  --nebula-a-top: 18%;
+  --nebula-a-width: 22%;
+  --nebula-a-height: 18%;
+  --nebula-b-left: 66%;
+  --nebula-b-top: 14%;
+  --nebula-b-width: 16%;
+  --nebula-b-height: 15%;
+  --nebula-c-left: 34%;
+  --nebula-c-top: 70%;
+  --nebula-c-width: 26%;
+  --nebula-c-height: 16%;
+}
+
+.sky-panel[data-theme="abyss"] .sky-photo-texture {
+  opacity: 0.2;
+  background-image: url("/sky-assets/texture-grain.jpg");
+}
+
+.sky-panel[data-theme="abyss"] .sky-photo-main {
+  opacity: 0.18;
+  background-image: url("/sky-assets/abyss-field.jpg");
+  background-position: center 24%;
+  filter: saturate(0.7) brightness(0.88);
+}
+
 .sky-gradient,
+.sky-photo,
+.sky-orbital-body,
 .sky-veil,
 .sky-nebula,
 .bg-star,
 .floating-mote,
+.meditation-layer,
 .constellation-lines,
 .ritual-layer,
 .shooting-star,
@@ -1044,6 +1591,96 @@
     radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.05), transparent 18%),
     radial-gradient(circle at 76% 14%, rgba(255, 255, 255, 0.04), transparent 16%),
     linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+}
+
+.sky-photo {
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.sky-photo-main {
+  background-size: cover;
+  mix-blend-mode: screen;
+  filter: saturate(0.88) blur(1px);
+}
+
+.sky-photo-texture {
+  background-size: 440px auto;
+  background-repeat: repeat;
+  mix-blend-mode: screen;
+  filter: saturate(0.7) contrast(0.92);
+}
+
+.sky-orbital-body {
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.sky-orbital-body-moon {
+  width: clamp(110px, 18vw, 200px);
+  aspect-ratio: 1;
+  top: 7%;
+  right: 6%;
+  overflow: hidden;
+  border-radius: 50%;
+  background-image: url("/sky-assets/moon2.png");
+  background-size: cover;
+  background-position: center;
+  filter:
+    brightness(0.96)
+    contrast(1.02)
+    drop-shadow(0 0 18px rgba(255, 250, 240, 0.08))
+    drop-shadow(0 0 36px rgba(119, 239, 242, 0.08));
+  transform: rotate(-8deg);
+}
+
+.sky-orbital-body-moon::before,
+.sky-orbital-body-moon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.sky-orbital-body-moon::before {
+  background:
+    radial-gradient(circle at var(--moon-highlight-x, 78%) 34%, rgba(255, 248, 236, var(--moon-glow-strength, 0.18)), transparent 40%),
+    radial-gradient(circle at var(--moon-lowlight-x, 24%) 74%, rgba(8, 16, 30, 0.14), transparent 62%);
+  mix-blend-mode: screen;
+}
+
+.sky-orbital-body-moon::after {
+  box-shadow:
+    inset 0 0 24px rgba(2, 6, 14, 0.24),
+    inset 0 0 42px var(--moon-shadow-soft, rgba(10, 22, 44, 0.28));
+}
+
+.sky-orbital-body-moon.moon-phase-new::after {
+  background: var(--moon-shadow-color);
+}
+
+.sky-orbital-body-moon.moon-phase-full::after {
+  background: transparent;
+  box-shadow: none;
+}
+
+.sky-orbital-body-moon:not(.moon-phase-new):not(.moon-phase-full)::after {
+  background:
+    radial-gradient(
+      ellipse 50% 50% at calc(50% + var(--moon-mask-shift, 0%)) 50%,
+      transparent 97.2%,
+      var(--moon-shadow-soft, rgba(10, 22, 44, 0.28)) 98.6%,
+      var(--moon-shadow-color) 100%
+    );
 }
 
 .sky-veil {
@@ -1221,6 +1858,56 @@
   animation: shootingC 22s linear infinite;
 }
 
+.meditation-layer {
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.meditation-line {
+  position: absolute;
+  left: 50%;
+  max-width: min(62%, 720px);
+  padding: 0 14px;
+  color: var(--meditation-ink);
+  text-shadow:
+    0 0 22px var(--meditation-halo),
+    0 2px 18px var(--meditation-shadow),
+    0 0 2px rgba(255, 255, 255, 0.08);
+  filter: saturate(0.96);
+  will-change: transform, opacity, filter;
+}
+
+.meditation-line span {
+  display: inline-block;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  text-wrap: pretty;
+}
+
+.meditation-line-title span {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.16vw, 1.22rem);
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.015em;
+}
+
+.meditation-line-note span {
+  font-family: var(--font-display);
+  font-size: clamp(0.92rem, 1.04vw, 1.02rem);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.62;
+  letter-spacing: 0.012em;
+}
+
+.meditation-line-flow {
+  text-align: center;
+}
+
 .constellation-lines {
   inset: 0;
   width: 100%;
@@ -1370,6 +2057,10 @@
     24% 14%,
     42% 24%
   );
+}
+
+.atlas-star-lucero::before {
+  clip-path: polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0% 50%, 38% 38%);
 }
 
 .atlas-star-heart::before {
@@ -1539,26 +2230,37 @@
 
 .inspector-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
   gap: 10px;
   min-height: 0;
+  align-content: start;
+  overflow: visible;
 }
 
 .inspector-panel-body {
   min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
   display: grid;
   align-content: start;
   gap: 8px;
-  padding-right: 2px;
-  padding-bottom: 6px;
+  padding-right: 0;
+  padding-bottom: 0;
 }
 
 .inspector-panel-footer {
   position: relative;
+  display: grid;
+  gap: 8px;
   padding: 10px 10px 12px;
   background: linear-gradient(180deg, rgba(42, 24, 69, 0), rgba(42, 24, 69, 0.92) 26%, rgba(42, 24, 69, 0.98));
   border-radius: 0 0 26px 26px;
+}
+
+.inspector-rail-secondary {
+  width: 100%;
+  min-height: 30px;
+  justify-content: center;
+  font-size: 0.72rem;
 }
 
 .inspector-rail-create {
@@ -1754,6 +2456,28 @@
 .journal-list {
   overflow: auto;
   min-height: 0;
+  align-content: start;
+  grid-auto-rows: 126px;
+  padding-right: 6px;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(176, 109, 148, 0.45) rgba(233, 214, 190, 0.4);
+}
+
+.journal-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.journal-list::-webkit-scrollbar-track {
+  background: rgba(233, 214, 190, 0.4);
+  border-radius: 999px;
+}
+
+.journal-list::-webkit-scrollbar-thumb {
+  background: rgba(176, 109, 148, 0.45);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .journal-list-head,
@@ -1775,7 +2499,7 @@
 }
 
 .journal-list-head strong {
-  font-family: "Palatino Linotype", "Book Antiqua", serif;
+  font-family: var(--font-display);
   font-size: 0.96rem;
   font-weight: 600;
   color: rgb(64, 50, 114);
@@ -1793,6 +2517,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 126px;
+  height: 126px;
   padding: 11px 14px 11px 54px;
   border-radius: 18px;
   border: 1px solid rgba(170, 144, 116, 0.18);
@@ -1845,9 +2571,11 @@
 .journal-entry-copy {
   display: grid;
   gap: 4px;
+  align-content: start;
 }
 
 .journal-entry-copy strong {
+  font-family: var(--font-display);
   font-weight: 700;
   color: rgb(64, 50, 114);
 }
@@ -1861,6 +2589,10 @@
   color: rgba(74, 60, 85, 0.78);
   font-size: 0.75rem;
   line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .selection-pill {
@@ -1905,6 +2637,56 @@
   gap: 10px;
 }
 
+.editor-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.editor-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px 12px 13px;
+  border-radius: 18px;
+  border: 1px solid rgba(130, 111, 171, 0.16);
+  background:
+    linear-gradient(180deg, rgba(69, 50, 114, 0.2), rgba(42, 24, 69, 0.14)),
+    rgba(255, 255, 255, 0.018);
+}
+
+.editor-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.editor-hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--ink-muted) 64%, var(--paper-ui));
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.editor-shell .editor-label {
+  margin-bottom: 0;
+}
+
+.editor-custom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.editor-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.editor-select-field {
+  display: grid;
+  gap: 6px;
+}
+
 .inspector-card label {
   display: block;
   font-size: 0.66rem;
@@ -1916,8 +2698,10 @@
 
 .inspector-card textarea,
 .inspector-card input,
+.inspector-card select,
 .overlay-card textarea,
-.overlay-card input {
+.overlay-card input,
+.overlay-card select {
   width: 100%;
   min-height: 44px;
   padding: 10px 13px;
@@ -1944,10 +2728,269 @@
   border-radius: 14px;
 }
 
+.inspector-card select,
+.overlay-card select,
+.journal-detail-card select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.editor-color-picker {
+  width: 74px;
+  min-width: 74px;
+}
+
+.inline-toggle-active {
+  background: rgba(127, 175, 170, 0.18);
+  border-color: rgba(127, 175, 170, 0.32);
+  color: color-mix(in srgb, var(--pearl) 90%, var(--accent-mint));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.button-row-editor {
+  padding-top: 2px;
+}
+
+.theme-current-row {
+  --theme-surface: rgba(24, 42, 79, 0.9);
+  --theme-accent: rgba(127, 175, 170, 0.62);
+  --theme-orb: rgba(245, 199, 85, 0.88);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(130, 111, 171, 0.16);
+  background: rgba(64, 50, 114, 0.2);
+}
+
+.theme-current-marker,
+.theme-swatch-marker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--theme-orb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-accent) 18%, transparent);
+}
+
+.theme-preview-copy,
+.theme-swatch-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.theme-preview-copy strong,
+.theme-swatch-copy strong {
+  color: color-mix(in srgb, var(--pearl) 82%, var(--accent-sand));
+  font-size: 0.8rem;
+}
+
+.theme-preview-copy span,
+.theme-swatch-copy span {
+  color: color-mix(in srgb, var(--ink-muted) 74%, var(--paper-ui));
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.theme-catalog {
+  display: grid;
+  gap: 10px;
+}
+
+.theme-group {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-group .editor-label {
+  color: color-mix(in srgb, var(--ink-muted) 60%, var(--accent-sand));
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.inspector-card .theme-grid {
+  grid-template-columns: 1fr;
+}
+
+.theme-swatch-card {
+  --theme-surface: rgba(24, 42, 79, 0.9);
+  --theme-accent: rgba(127, 175, 170, 0.62);
+  --theme-orb: rgba(245, 199, 85, 0.88);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 9px 10px;
+  border: 1px solid rgba(130, 111, 171, 0.16);
+  border-radius: 14px;
+  background: rgba(64, 50, 114, 0.14);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.theme-swatch-card-active,
+.theme-swatch-card[aria-pressed="true"] {
+  border-color: rgba(217, 178, 130, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 6px 14px rgba(20, 10, 33, 0.14);
+  background: color-mix(in srgb, var(--theme-surface) 60%, rgba(64, 50, 114, 0.3));
+}
+
+.theme-swatch-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(217, 178, 130, 0.16);
+  border: 1px solid rgba(217, 178, 130, 0.22);
+  color: color-mix(in srgb, var(--pearl) 82%, var(--accent-sand));
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.theme-swatch-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(130, 111, 171, 0.18);
+  color: transparent;
+  background: rgba(42, 24, 69, 0.24);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.theme-swatch-check-active {
+  border-color: rgba(217, 178, 130, 0.28);
+  background: rgba(217, 178, 130, 0.16);
+  color: color-mix(in srgb, var(--pearl) 88%, var(--accent-sand));
+}
+
+.theme-current-row[data-theme="night"],
+.theme-swatch-card[data-theme="night"] {
+  --theme-surface: rgba(13, 33, 66, 0.92);
+  --theme-accent: rgba(69, 170, 169, 0.42);
+  --theme-orb: rgba(245, 199, 85, 0.82);
+}
+
+.theme-current-row[data-theme="rose"],
+.theme-swatch-card[data-theme="rose"] {
+  --theme-surface: rgba(74, 38, 73, 0.92);
+  --theme-accent: rgba(236, 129, 109, 0.34);
+  --theme-orb: rgba(255, 180, 209, 0.88);
+}
+
+.theme-current-row[data-theme="dawn"],
+.theme-swatch-card[data-theme="dawn"] {
+  --theme-surface: rgba(96, 66, 72, 0.92);
+  --theme-accent: rgba(245, 199, 85, 0.36);
+  --theme-orb: rgba(255, 201, 133, 0.9);
+}
+
+.theme-current-row[data-theme="aurora"],
+.theme-swatch-card[data-theme="aurora"] {
+  --theme-surface: rgba(20, 49, 71, 0.92);
+  --theme-accent: rgba(119, 239, 242, 0.4);
+  --theme-orb: rgba(182, 47, 191, 0.9);
+}
+
+.theme-current-row[data-theme="midnight"],
+.theme-swatch-card[data-theme="midnight"] {
+  --theme-surface: rgba(12, 18, 41, 0.96);
+  --theme-accent: rgba(69, 108, 151, 0.34);
+  --theme-orb: rgba(245, 240, 255, 0.84);
+}
+
+.theme-current-row[data-theme="ember"],
+.theme-swatch-card[data-theme="ember"] {
+  --theme-surface: rgba(60, 24, 34, 0.94);
+  --theme-accent: rgba(255, 115, 116, 0.36);
+  --theme-orb: rgba(245, 199, 85, 0.88);
+}
+
+.theme-current-row[data-theme="lagoon"],
+.theme-swatch-card[data-theme="lagoon"] {
+  --theme-surface: rgba(10, 53, 83, 0.92);
+  --theme-accent: rgba(119, 239, 242, 0.34);
+  --theme-orb: rgba(64, 173, 227, 0.84);
+}
+
+.theme-current-row[data-theme="gaia"],
+.theme-swatch-card[data-theme="gaia"] {
+  --theme-surface: rgba(11, 39, 75, 0.92);
+  --theme-accent: rgba(127, 175, 170, 0.32);
+  --theme-orb: rgba(64, 173, 227, 0.88);
+}
+
+.theme-current-row[data-theme="rings"],
+.theme-swatch-card[data-theme="rings"] {
+  --theme-surface: rgba(38, 36, 73, 0.92);
+  --theme-accent: rgba(217, 178, 130, 0.36);
+  --theme-orb: rgba(245, 199, 85, 0.88);
+}
+
+.theme-current-row[data-theme="venus"],
+.theme-swatch-card[data-theme="venus"] {
+  --theme-surface: rgba(72, 31, 60, 0.92);
+  --theme-accent: rgba(236, 129, 109, 0.36);
+  --theme-orb: rgba(255, 201, 133, 0.9);
+}
+
+.theme-current-row[data-theme="mercury"],
+.theme-swatch-card[data-theme="mercury"] {
+  --theme-surface: rgba(62, 45, 58, 0.94);
+  --theme-accent: rgba(217, 178, 130, 0.26);
+  --theme-orb: rgba(245, 199, 85, 0.82);
+}
+
+.theme-current-row[data-theme="eclipse"],
+.theme-swatch-card[data-theme="eclipse"] {
+  --theme-surface: rgba(34, 17, 54, 0.96);
+  --theme-accent: rgba(237, 120, 218, 0.3);
+  --theme-orb: rgba(255, 201, 133, 0.78);
+}
+
+.theme-current-row[data-theme="abyss"],
+.theme-swatch-card[data-theme="abyss"] {
+  --theme-surface: rgba(8, 16, 33, 0.98);
+  --theme-accent: rgba(69, 108, 151, 0.24);
+  --theme-orb: rgba(127, 175, 170, 0.76);
+}
+
 .inspector-card textarea:focus,
 .inspector-card input:focus,
+.inspector-card select:focus,
 .overlay-card textarea:focus,
-.overlay-card input:focus {
+.overlay-card input:focus,
+.overlay-card select:focus {
   border-color: rgba(217, 178, 130, 0.34);
   box-shadow: 0 0 0 3px rgba(217, 178, 130, 0.12);
 }
@@ -2258,6 +3301,7 @@
 .journal-list-card,
 .journal-detail-card {
   min-height: 0;
+  height: 100%;
   padding: 18px 18px 20px 22px;
   border-color: rgba(164, 125, 95, 0.22);
   box-shadow:
@@ -2274,9 +3318,26 @@
 
 .journal-detail-card {
   align-content: start;
+  overflow: auto;
   background:
     linear-gradient(180deg, rgba(255, 249, 236, 0.99), rgba(240, 226, 202, 0.97)),
     #f5ead5;
+}
+
+.journal-detail-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.journal-detail-card::-webkit-scrollbar-track {
+  background: rgba(233, 214, 190, 0.36);
+  border-radius: 999px;
+}
+
+.journal-detail-card::-webkit-scrollbar-thumb {
+  background: rgba(176, 109, 148, 0.4);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .journal-list-card::before,
@@ -2330,7 +3391,7 @@
 .journal-entry-date,
 .journal-entry-preview,
 .journal-copy {
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
 }
 
 .journal-list-card h2,
@@ -2349,7 +3410,8 @@
 }
 
 .journal-detail-card input,
-.journal-detail-card textarea {
+.journal-detail-card textarea,
+.journal-detail-card select {
   width: 100%;
   min-height: 44px;
   padding: 10px 13px;
@@ -2375,26 +3437,19 @@
 
 .inspector-panel .inspector-card h2 {
   display: inline-block;
-  width: fit-content;
   max-width: 100%;
-  padding: 5px 12px 7px;
-  margin: 0 0 4px -4px;
-  border-radius: 14px 18px 16px 10px;
-  border: 1px solid rgba(236, 129, 109, 0.24);
-  background: rgba(236, 129, 109, 0.26);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 249, 240, 0.12),
-    0 8px 18px rgba(20, 10, 33, 0.12),
-    0 0 20px rgba(236, 129, 109, 0.08);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  font-size: 1.15rem;
-  line-height: 1.03;
-  letter-spacing: 0.01em;
-  color: color-mix(in srgb, var(--pearl) 82%, white);
+  margin: 0 0 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1.26rem;
+  line-height: 1.02;
+  letter-spacing: 0.005em;
+  color: color-mix(in srgb, var(--pearl) 72%, var(--accent-rose));
   text-shadow:
     0 1px 0 rgba(255, 248, 236, 0.18),
-    0 0 10px rgba(255, 248, 236, 0.06);
+    0 0 12px rgba(255, 141, 201, 0.08);
 }
 
 .inspector-panel .constellation-item-copy strong {
@@ -2427,7 +3482,8 @@
 }
 
 .journal-detail-card input:focus,
-.journal-detail-card textarea:focus {
+.journal-detail-card textarea:focus,
+.journal-detail-card select:focus {
   border-color: rgba(174, 104, 113, 0.38);
   box-shadow:
     0 0 0 3px rgba(217, 178, 130, 0.16),
@@ -2451,6 +3507,25 @@
 .journal-detail-card .field-warning {
   color: rgb(174, 104, 113);
   font-weight: 700;
+}
+
+.journal-detail-card .editor-custom-row label,
+.journal-detail-card .editor-select-field label {
+  margin: 0;
+}
+
+.journal-detail-card .editor-section {
+  border-color: rgba(174, 104, 113, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.7), rgba(243, 231, 211, 0.34)),
+    rgba(255, 249, 240, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.64),
+    0 6px 16px rgba(87, 61, 77, 0.04);
+}
+
+.journal-detail-card .editor-hint {
+  color: rgba(112, 89, 106, 0.72);
 }
 
 .journal-detail-card .editor-preview-card {
@@ -2515,6 +3590,14 @@
     linear-gradient(180deg, rgba(255, 250, 242, 0.94), rgba(234, 221, 205, 0.9)),
     #f4e7d8;
   color: rgba(96, 73, 96, 0.88);
+}
+
+.journal-detail-card .inline-toggle-active {
+  background:
+    linear-gradient(180deg, rgba(255, 243, 248, 0.94), rgba(244, 233, 215, 0.9)),
+    #fbf0e8;
+  border-color: rgba(176, 109, 148, 0.24);
+  color: rgb(64, 50, 114);
 }
 
 .backup-message {
@@ -2627,12 +3710,32 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .sky-nebula,
+  .bg-star,
+  .star-core,
+  .star-aura,
+  .floating-mote,
+  .shooting-star,
+  .meditation-line {
+    animation: none !important;
+  }
+}
+
 @media (max-width: 1120px) {
   .atlas-layout {
     grid-template-columns: 1fr;
   }
 
+  .storage-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .sky-rail {
+    position: static;
+    top: auto;
+    max-height: none;
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
@@ -2642,10 +3745,14 @@
 
   .workspace {
     grid-template-columns: 1fr;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .journal-layout {
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .journal-header {
@@ -2667,6 +3774,41 @@
     height: min(72vh, 700px);
     min-height: 540px;
   }
+
+  .sky-frame,
+  .inspector-panel {
+    height: auto;
+    max-height: none;
+  }
+
+  .sky-frame {
+    position: static;
+    top: auto;
+  }
+}
+
+@media (min-width: 1121px) {
+  .app-shell[data-surface="journal"] {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-shell[data-surface="journal"] .atlas-layout,
+  .app-shell[data-surface="journal"] .surface-shell,
+  .app-shell[data-surface="journal"] .journal-shell,
+  .app-shell[data-surface="journal"] .journal-layout {
+    min-height: 0;
+  }
+
+  .app-shell[data-surface="journal"] .surface-shell {
+    overflow: hidden;
+  }
+
+  .app-shell[data-surface="journal"] .journal-shell,
+  .app-shell[data-surface="journal"] .journal-layout {
+    height: 100%;
+    overflow: hidden;
+  }
 }
 
 @media (max-width: 780px) {
@@ -2676,8 +3818,13 @@
   }
 
   .top-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .toolbar-trail {
+    justify-content: flex-start;
+    padding: 0;
   }
 
   .toolbar-actions {
@@ -2700,6 +3847,20 @@
   .meta-grid {
     grid-template-columns: 1fr;
   }
+
+  .theme-current-row,
+  .theme-swatch-card {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-select-grid,
+  .editor-custom-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -2717,4 +3878,23 @@
   .toolbar-actions {
     flex-wrap: wrap;
   }
+
+  .card-title-row {
+    grid-template-columns: 1fr;
+  }
+
+  .card-title-actions {
+    justify-content: flex-start;
+  }
+}
+.inspector-card h2 {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 700;
+}
+
+.overlay-card h2 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
 }

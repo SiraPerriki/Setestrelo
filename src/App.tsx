@@ -12,10 +12,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
-type SkyTheme = "night" | "rose" | "dawn" | "aurora" | "midnight" | "ember" | "lagoon" | "eclipse";
+type SkyTheme = "night" | "rose" | "dawn" | "aurora" | "midnight" | "ember" | "lagoon" | "gaia" | "rings" | "venus" | "mercury" | "eclipse" | "abyss";
 type Tone = "gold" | "pearl" | "coral" | "sky" | "rose" | "mint" | "violet" | "custom";
 type StarSize = "s" | "m" | "l";
-type StarShape = "orb" | "diamond" | "spark" | "heart";
+type StarShape = "orb" | "diamond" | "spark" | "heart" | "lucero";
 type LabelMode = "titles" | "hidden";
 type LabelSide = "top" | "bottom" | "left" | "right";
 
@@ -80,6 +80,11 @@ type StarEditorDraft = {
   shape: StarShape;
 };
 
+type SkyEditorDraft = {
+  name: string;
+  theme: SkyTheme;
+};
+
 type OverlayPanel =
   | "help"
   | "backup"
@@ -90,10 +95,14 @@ type OverlayPanel =
   | "delete-constellation"
   | "join-constellation"
   | "confirm-import"
+  | "unsaved-changes"
   | null;
 type SurfaceMode = "sky" | "journal";
 type PendingSkyAction = { skyId: string; mode: "composer" | "constellation" } | null;
 type PendingConstellationJoin = { starId: string; constellationId: string } | null;
+type PendingNavigation =
+  | { type: "activate-sky"; skyId: string; afterSwitch?: PendingSkyAction; surfaceMode: SurfaceMode }
+  | { type: "show-sky-root" };
 
 type DragSession = {
   starId: string;
@@ -105,9 +114,31 @@ type DragSession = {
 };
 
 type Rect = { x1: number; y1: number; x2: number; y2: number };
+type MoonPhaseKey = "new" | "waxing-crescent" | "first-quarter" | "waxing-gibbous" | "full" | "waning-gibbous" | "last-quarter" | "waning-crescent";
+type MoonPhase = { age: number; phase: number; illumination: number; waxing: boolean; name: string; key: MoonPhaseKey };
+type StorageBootstrap = {
+  state: AtlasState;
+  notice: string;
+  skipInitialPersist: boolean;
+};
+type MeditationPhrase = {
+  id: string;
+  starId: string;
+  text: string;
+  emphasis: "title" | "note";
+};
+type MeditationMotion = "flow";
+type MeditationLine = MeditationPhrase & {
+  key: string;
+  top: number;
+  motion: MeditationMotion;
+  delay: number;
+  duration: number;
+};
 
 const STORAGE_KEY = "atlas-de-luz-state-v4";
 const LEGACY_STORAGE_KEY = "atlas-de-luz-state-v3";
+const STORAGE_RECOVERY_KEY = "atlas-de-luz-state-recovery-v4";
 const MAX_SKY_NAME = 36;
 const SOFT_SKY_NAME = 24;
 const MAX_TITLE = 48;
@@ -118,10 +149,19 @@ const MIN_DISTANCE = 12;
 const CONSTELLATION_JOIN_THRESHOLD = 5.4;
 const BIRTH_ADD_MS = 1320;
 const BIRTH_END_MS = 2100;
-const THEMES: SkyTheme[] = ["night", "rose", "dawn", "aurora", "midnight", "ember", "lagoon", "eclipse"];
+const THEMES: SkyTheme[] = ["night", "rose", "dawn", "aurora", "midnight", "ember", "lagoon", "gaia", "rings", "venus", "mercury", "eclipse", "abyss"];
 const COLORS: Tone[] = ["pearl", "gold", "coral", "sky", "rose", "mint", "violet"];
 const SIZES: StarSize[] = ["m", "s", "l", "m"];
-const SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "orb"];
+const SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero"];
+const EDITOR_SIZES: StarSize[] = ["s", "m", "l"];
+const EDITOR_SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero"];
+const THEME_GROUPS: Array<{ label: string; themes: SkyTheme[] }> = [
+  { label: "Claros", themes: ["night", "rose", "dawn", "aurora"] },
+  { label: "Profundos", themes: ["midnight", "ember", "eclipse", "abyss"] },
+  { label: "Orbitales", themes: ["lagoon", "gaia", "rings", "venus", "mercury"] },
+];
+const SYNODIC_MONTH = 29.530588853;
+const KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14, 0);
 const TONE_VALUES = {
   pearl: "#f5f0ff",
   gold: "#f7d794",
@@ -292,9 +332,18 @@ function excerpt(value: string, max = 86) {
   return compact.length > max ? `${compact.slice(0, max - 1).trim()}…` : compact;
 }
 
+function compactText(value: string) {
+  return value.replace(/\s+/g, " ").replace(/\s([,.;!?])/g, "$1").trim();
+}
+
+function arraysEqual<T>(left: T[], right: T[]) {
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => item === right[index]);
+}
+
 function hasDistinctNote(note: string, title: string) {
-  const compactNote = note.replace(/\s+/g, " ").trim();
-  const compactTitle = title.replace(/\s+/g, " ").trim();
+  const compactNote = compactText(note);
+  const compactTitle = compactText(title);
   return Boolean(compactNote) && compactNote !== compactTitle;
 }
 
@@ -318,7 +367,7 @@ function normalizeSize(value: unknown): StarSize {
 }
 
 function normalizeShape(value: unknown): StarShape {
-  return ["orb", "diamond", "spark", "heart"].includes(String(value)) ? (value as StarShape) : "orb";
+  return ["orb", "diamond", "spark", "heart", "lucero"].includes(String(value)) ? (value as StarShape) : "orb";
 }
 
 function starColorValue(color: Tone, customColor: string | null = null) {
@@ -464,11 +513,106 @@ function formatDate(value: string) {
   return DATE_FORMAT.format(new Date(value));
 }
 
+function moonPhaseKey(phase: number): MoonPhaseKey {
+  if (phase < 0.03 || phase >= 0.97) return "new";
+  if (phase < 0.22) return "waxing-crescent";
+  if (phase < 0.28) return "first-quarter";
+  if (phase < 0.47) return "waxing-gibbous";
+  if (phase < 0.53) return "full";
+  if (phase < 0.72) return "waning-gibbous";
+  if (phase < 0.78) return "last-quarter";
+  return "waning-crescent";
+}
+
+function moonPhaseName(key: MoonPhaseKey) {
+  if (key === "new") return "Luna nueva";
+  if (key === "waxing-crescent") return "Creciente fina";
+  if (key === "first-quarter") return "Cuarto creciente";
+  if (key === "waxing-gibbous") return "Gibosa creciente";
+  if (key === "full") return "Luna llena";
+  if (key === "waning-gibbous") return "Gibosa menguante";
+  if (key === "last-quarter") return "Cuarto menguante";
+  return "Menguante fina";
+}
+
+function calculateMoonPhase(date: Date): MoonPhase {
+  const daysSinceReference = (date.getTime() - KNOWN_NEW_MOON_UTC) / 86_400_000;
+  const age = ((daysSinceReference % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
+  const phase = age / SYNODIC_MONTH;
+  const illumination = 0.5 * (1 - Math.cos(phase * Math.PI * 2));
+  const key = moonPhaseKey(phase);
+  return {
+    age,
+    phase,
+    illumination,
+    waxing: phase <= 0.5,
+    key,
+    name: moonPhaseName(key),
+  };
+}
+
 function shapeText(shape: StarShape) {
   if (shape === "orb") return "orbe";
   if (shape === "diamond") return "rombo";
   if (shape === "heart") return "corazon";
+  if (shape === "lucero") return "lucero";
   return "chispa";
+}
+
+function extractMeditationText(title: string, note: string) {
+  const cleanTitle = compactText(title);
+  const cleanNote = compactText(note);
+  if (!cleanNote || cleanNote.toLowerCase() === cleanTitle.toLowerCase()) return "";
+  if (cleanNote.length <= 144) return cleanNote;
+
+  const minLength = Math.max(28, Math.min(54, cleanTitle.length + 10));
+  const sentences = cleanNote
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => compactText(part))
+    .filter(Boolean);
+  const preferredSentence = sentences.find((sentence) => sentence.length >= minLength && sentence.length <= 158);
+  if (preferredSentence) return preferredSentence;
+
+  const clauses = cleanNote
+    .split(/[;:]/)
+    .map((part) => compactText(part))
+    .filter(Boolean);
+  const preferredClause = clauses.find((clause) => clause.length >= minLength && clause.length <= 132);
+  if (preferredClause) {
+    return /[.!?]$/.test(preferredClause) ? preferredClause : `${preferredClause}.`;
+  }
+
+  const commaClause = cleanNote
+    .split(",")
+    .map((part) => compactText(part))
+    .find((part) => part.length >= minLength && part.length <= 114);
+  if (commaClause) {
+    return `${commaClause}.`;
+  }
+
+  return excerpt(cleanNote, 132);
+}
+
+function buildMeditationPool(stars: Star[]): MeditationPhrase[] {
+  return [...stars]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((star) => {
+      const title = safeTitle(star.title, star.note);
+      const noteLine = extractMeditationText(title, star.note);
+      return noteLine
+        ? {
+            id: `${star.id}-note`,
+            starId: star.id,
+            text: noteLine,
+            emphasis: "note" as const,
+          }
+        : {
+            id: `${star.id}-title`,
+            starId: star.id,
+            text: title,
+            emphasis: "title" as const,
+          };
+    });
 }
 
 function themeText(theme: SkyTheme) {
@@ -479,7 +623,28 @@ function themeText(theme: SkyTheme) {
   if (theme === "midnight") return "Medianoche";
   if (theme === "ember") return "Brasa";
   if (theme === "lagoon") return "Laguna";
+  if (theme === "gaia") return "Gaia";
+  if (theme === "rings") return "Anillos";
+  if (theme === "venus") return "Venus";
+  if (theme === "mercury") return "Mercurio";
+  if (theme === "abyss") return "Abismo";
   return "Eclipse";
+}
+
+function themeMoodText(theme: SkyTheme) {
+  if (theme === "night") return "azul sereno";
+  if (theme === "rose") return "bruma rosa";
+  if (theme === "dawn") return "amanecer dorado";
+  if (theme === "aurora") return "velo boreal";
+  if (theme === "midnight") return "sombra quieta";
+  if (theme === "ember") return "resplandor calido";
+  if (theme === "lagoon") return "oceano celeste";
+  if (theme === "gaia") return "tierra cercana";
+  if (theme === "rings") return "anillos orbitales";
+  if (theme === "venus") return "perla solar";
+  if (theme === "mercury") return "roca brillante";
+  if (theme === "abyss") return "vacio profundo";
+  return "eclipse violeta";
 }
 
 function toneText(tone: Tone) {
@@ -589,19 +754,66 @@ function normalizeAtlasState(raw: unknown): AtlasState | null {
   };
 }
 
-function readState(): AtlasState {
-  if (typeof window === "undefined") return DEFAULT_STATE;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE;
-    return normalizeAtlasState(JSON.parse(raw)) ?? DEFAULT_STATE;
-  } catch {
-    return DEFAULT_STATE;
+function serializeAtlasState(state: AtlasState) {
+  return JSON.stringify({
+    skies: state.skies,
+    stars: state.stars,
+    constellations: state.constellations,
+    activeSkyId: state.activeSkyId,
+    labelMode: state.labelMode,
+  });
+}
+
+function readStateBootstrap(): StorageBootstrap {
+  if (typeof window === "undefined") {
+    return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false };
   }
+
+  const primaryRaw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
+  const recoveryRaw = window.localStorage.getItem(STORAGE_RECOVERY_KEY);
+
+  if (primaryRaw) {
+    try {
+      const parsed = normalizeAtlasState(JSON.parse(primaryRaw));
+      if (parsed) {
+        return { state: parsed, notice: "", skipInitialPersist: false };
+      }
+    } catch {
+      // Intentamos recuperar abajo.
+    }
+  }
+
+  if (recoveryRaw) {
+    try {
+      const parsedRecovery = normalizeAtlasState(JSON.parse(recoveryRaw));
+      if (parsedRecovery) {
+        return {
+          state: parsedRecovery,
+          notice: primaryRaw
+            ? "He recuperado una copia local del atlas porque la memoria principal no se pudo leer."
+            : "He restaurado una copia local guardada automaticamente de tu atlas.",
+          skipInitialPersist: false,
+        };
+      }
+    } catch {
+      // Si tambien falla la copia, seguimos con el atlas base.
+    }
+  }
+
+  if (primaryRaw) {
+    return {
+      state: DEFAULT_STATE,
+      notice: "No pude leer el atlas guardado. He cargado el atlas base y no sobrescribire la memoria en este arranque hasta que hagas cambios.",
+      skipInitialPersist: true,
+    };
+  }
+
+  return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false };
 }
 
 export function App() {
-  const initial = useMemo(() => readState(), []);
+  const initialBootstrap = useMemo(() => readStateBootstrap(), []);
+  const initial = initialBootstrap.state;
   const [skies, setSkies] = useState(initial.skies);
   const [stars, setStars] = useState(initial.stars);
   const [constellations, setConstellations] = useState(initial.constellations);
@@ -613,6 +825,7 @@ export function App() {
   const [selectedStarId, setSelectedStarId] = useState<string | null>(null);
   const [starEditor, setStarEditor] = useState<StarEditorDraft | null>(null);
   const [editingSky, setEditingSky] = useState(false);
+  const [skyEditor, setSkyEditor] = useState<SkyEditorDraft | null>(null);
   const [constellationMode, setConstellationMode] = useState(false);
   const [editingConstellationId, setEditingConstellationId] = useState<string | null>(null);
   const [draftConstellationName, setDraftConstellationName] = useState("");
@@ -631,7 +844,12 @@ export function App() {
   const [skyMenuId, setSkyMenuId] = useState<string | null>(null);
   const [draggedSkyId, setDraggedSkyId] = useState<string | null>(null);
   const [dropSkyId, setDropSkyId] = useState<string | null>(null);
+  const [pendingDeleteSkyId, setPendingDeleteSkyId] = useState<string | null>(null);
   const [pendingSkyAction, setPendingSkyAction] = useState<PendingSkyAction>(null);
+  const [storageNotice, setStorageNotice] = useState(initialBootstrap.notice);
+  const [meditationMode, setMeditationMode] = useState(false);
+  const [meditationCycle, setMeditationCycle] = useState(0);
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
 
   const skyPanelRef = useRef<HTMLDivElement | null>(null);
   const skyRailRef = useRef<HTMLDivElement | null>(null);
@@ -640,25 +858,32 @@ export function App() {
   const dragSessionRef = useRef<DragSession | null>(null);
   const renderedStarsRef = useRef<Star[]>([]);
   const activeConstellationsRef = useRef<Constellation[]>([]);
+  const skipInitialPersistRef = useRef(initialBootstrap.skipInitialPersist);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      STORAGE_KEY,
-        JSON.stringify({
-          skies,
-          stars,
-          constellations,
-          activeSkyId,
-          labelMode: skies.find((sky) => sky.id === activeSkyId)?.showTitles === false ? "hidden" : "titles",
-        }),
-      );
+    if (skipInitialPersistRef.current) {
+      skipInitialPersistRef.current = false;
+      return;
+    }
+
+    const nextState: AtlasState = {
+      skies,
+      stars,
+      constellations,
+      activeSkyId,
+      labelMode: skies.find((sky) => sky.id === activeSkyId)?.showTitles === false ? "hidden" : "titles",
+    };
+    const serialized = serializeAtlasState(nextState);
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+    window.localStorage.setItem(STORAGE_RECOVERY_KEY, serialized);
   }, [activeSkyId, constellations, labelMode, skies, stars]);
 
   useEffect(() => {
     setSelectedStarId(null);
     setStarEditor(null);
     setEditingSky(false);
+    setSkyEditor(null);
     setComposerOpen(false);
     setConstellationMode(false);
     setEditingConstellationId(null);
@@ -666,6 +891,7 @@ export function App() {
     setDraftConstellationStarIds([]);
     setSkyMenuId(null);
     setPendingConstellationJoin(null);
+    setMeditationCycle(0);
   }, [activeSkyId]);
 
   useEffect(() => {
@@ -748,6 +974,7 @@ export function App() {
   }, []);
 
   const activeSky = useMemo(() => skies.find((sky) => sky.id === activeSkyId) ?? skies[0], [activeSkyId, skies]);
+  const liveSkyTheme = editingSky && skyEditor ? skyEditor.theme : activeSky.theme;
   const activeStars = useMemo(() => stars.filter((star) => star.skyId === activeSkyId), [activeSkyId, stars]);
   const renderedStars = useMemo(
     () =>
@@ -769,6 +996,7 @@ export function App() {
   );
   const activeConstellations = useMemo(() => constellations.filter((item) => item.skyId === activeSkyId), [activeSkyId, constellations]);
   const selectedStar = useMemo(() => renderedStars.find((star) => star.id === selectedStarId) ?? null, [renderedStars, selectedStarId]);
+  const persistedSelectedStar = useMemo(() => stars.find((star) => star.id === selectedStarId) ?? null, [selectedStarId, stars]);
   const editingSelectedStar = Boolean(selectedStar && starEditor?.id === selectedStar.id);
   const selectedConstellation = useMemo(
     () => activeConstellations.find((constellation) => constellation.id === pendingConstellationId) ?? null,
@@ -786,6 +1014,14 @@ export function App() {
     () => renderedStars.find((star) => star.id === pendingConstellationJoin?.starId) ?? null,
     [pendingConstellationJoin, renderedStars],
   );
+  const moonPhase = calculateMoonPhase(new Date());
+  const moonMaskShift = (moonPhase.waxing ? 1 : -1) * (1 - moonPhase.illumination) * 100;
+  const moonPhaseStyle = {
+    "--moon-glow-strength": `${0.14 + moonPhase.illumination * 0.2}`,
+    "--moon-mask-shift": `${moonMaskShift}%`,
+    "--moon-highlight-x": moonPhase.waxing ? "76%" : "24%",
+    "--moon-lowlight-x": moonPhase.waxing ? "24%" : "76%",
+  } as CSSProperties;
   const selectedStarConstellations = useMemo(
     () => (selectedStar ? activeConstellations.filter((constellation) => constellation.starIds.includes(selectedStar.id)) : []),
     [activeConstellations, selectedStar],
@@ -804,6 +1040,15 @@ export function App() {
         constellations: constellations.filter((item) => item.skyId === sky.id).length,
       })),
     [constellations, skies, stars],
+  );
+  const deleteTargetSky = useMemo(
+    () => skies.find((sky) => sky.id === (pendingDeleteSkyId ?? activeSkyId)) ?? activeSky,
+    [activeSky, activeSkyId, pendingDeleteSkyId, skies],
+  );
+  const deleteTargetStars = useMemo(() => stars.filter((star) => star.skyId === deleteTargetSky.id), [deleteTargetSky.id, stars]);
+  const deleteTargetConstellations = useMemo(
+    () => constellations.filter((item) => item.skyId === deleteTargetSky.id),
+    [constellations, deleteTargetSky.id],
   );
   const moveTargets = useMemo(
     () =>
@@ -827,6 +1072,102 @@ export function App() {
     sanitizeTitle(composer.title).length > 0 &&
     sanitizeTitle(composer.title).length <= MAX_TITLE &&
     composer.note.trim().length <= MAX_NOTE;
+  const composerHasContent = Boolean(sanitizeTitle(composer.title) || sanitizeNote(composer.note));
+  const skyEditorDirty = Boolean(
+    editingSky &&
+      skyEditor &&
+      (sanitizeSkyName(skyEditor.name) !== sanitizeSkyName(activeSky.name) || skyEditor.theme !== activeSky.theme),
+  );
+  const starEditorDirty = Boolean(
+    starEditor &&
+      persistedSelectedStar &&
+      (safeTitle(starEditor.title, starEditor.note) !== persistedSelectedStar.title ||
+        sanitizeNote(starEditor.note) !== persistedSelectedStar.note ||
+        starEditor.showTitle !== persistedSelectedStar.showTitle ||
+        starEditor.color !== persistedSelectedStar.color ||
+        normalizeCustomColor(starEditor.customColor) !== persistedSelectedStar.customColor ||
+        starEditor.size !== persistedSelectedStar.size ||
+        starEditor.shape !== persistedSelectedStar.shape),
+  );
+  const constellationDraftName = draftConstellationName.trim();
+  const constellationDraftStarIds = Array.from(new Set(draftConstellationStarIds));
+  const constellationDirty = Boolean(
+    constellationMode &&
+      (editingConstellation
+        ? ((constellationDraftName || editingConstellation.name) !== editingConstellation.name ||
+          !arraysEqual(constellationDraftStarIds, editingConstellation.starIds))
+        : Boolean(constellationDraftName) || constellationDraftStarIds.length > 0),
+  );
+  const dirtyContext: "composer" | "sky" | "star" | "constellation" | null = starEditorDirty
+    ? "star"
+    : skyEditorDirty
+      ? "sky"
+      : constellationDirty
+        ? "constellation"
+        : composerHasContent
+          ? "composer"
+          : null;
+  const canSaveDirtyContext =
+    dirtyContext === "composer"
+      ? composerHasContent && !skyFull
+      : dirtyContext === "sky"
+        ? skyEditorDirty
+        : dirtyContext === "star"
+          ? starEditorDirty
+        : dirtyContext === "constellation"
+            ? constellationDraftStarIds.length >= 2
+            : false;
+  const toolbarContextLabel = editingSelectedStar
+    ? `Editar · ${safeTitle(starEditor?.title ?? selectedStar?.title ?? "", starEditor?.note ?? selectedStar?.note ?? "")}`
+    : surfaceMode === "journal"
+      ? selectedStar
+        ? selectedStar.title
+        : "Diario"
+      : editingSky
+        ? "Editar cielo"
+        : composerOpen
+          ? "Nueva estrella"
+          : constellationMode
+            ? editingConstellation
+              ? editingConstellation.name
+              : "Constelar"
+            : selectedStar
+              ? selectedStar.title
+              : "";
+  const meditationPaused =
+    composerOpen ||
+    constellationMode ||
+    editingSky ||
+    editingSelectedStar ||
+    Boolean(birthEffect) ||
+    Boolean(overlayPanel) ||
+    Boolean(draggingStarId);
+  const meditationPool = useMemo(() => buildMeditationPool(renderedStars), [renderedStars]);
+  const meditationRunning = meditationMode && surfaceMode === "sky" && !meditationPaused && meditationPool.length > 0;
+  const meditationButtonText =
+    activeStars.length === 0
+      ? "☾ Sin estrellas"
+      : meditationMode
+        ? meditationRunning
+          ? "☾ Salir de contemplacion"
+          : "☾ Contemplacion en pausa"
+        : "☾ Contemplar";
+  const meditationLines = useMemo(() => {
+    if (!meditationRunning || meditationPool.length === 0) return [] as MeditationLine[];
+
+    const phrase = meditationPool[meditationCycle % meditationPool.length];
+    const topSlots = [32, 48, 64];
+    return [
+      {
+        ...phrase,
+        key: `flow-${meditationCycle}-${phrase.id}`,
+        top: topSlots[meditationCycle % topSlots.length],
+        motion: "flow",
+        delay: 0,
+        duration: phrase.emphasis === "note" ? 40 : 34,
+      },
+    ];
+  }, [meditationCycle, meditationPool, meditationRunning]);
 
   const constellationPaths = useMemo(
     () =>
@@ -874,6 +1215,14 @@ export function App() {
   }, [activeSkyId]);
 
   useEffect(() => {
+    if (!meditationRunning) return;
+    const timer = window.setInterval(() => {
+      setMeditationCycle((current) => current + 1);
+    }, 44000);
+    return () => window.clearInterval(timer);
+  }, [meditationRunning]);
+
+  useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
@@ -914,6 +1263,142 @@ export function App() {
     setSkies((current) => current.map((sky) => (sky.id === id ? updater(sky) : sky)));
   }
 
+  function clearTransientPanels(nextSurfaceMode: SurfaceMode = "sky", options?: { preserveSelection?: boolean }) {
+    setSurfaceMode(nextSurfaceMode);
+    if (!options?.preserveSelection) setSelectedStarId(null);
+    setStarEditor(null);
+    setEditingSky(false);
+    setSkyEditor(null);
+    setComposerOpen(false);
+    setComposer({ title: "", note: "" });
+    setConstellationMode(false);
+    setEditingConstellationId(null);
+    setDraftConstellationName("");
+    setDraftConstellationStarIds([]);
+    setSkyMenuId(null);
+    setPendingConstellationJoin(null);
+    setPendingConstellationId(null);
+  }
+
+  function commitComposerStar(options?: { animate?: boolean; select?: boolean }) {
+    const shouldAnimate = options?.animate ?? true;
+    const shouldSelect = options?.select ?? true;
+    if (!composerHasContent || skyFull) return false;
+
+    const title = safeTitle(composer.title, composer.note);
+    const note = sanitizeNote(composer.note);
+    const visualIndex = activeStars.length;
+    const visual = {
+      color: COLORS[visualIndex % COLORS.length],
+      size: SIZES[visualIndex % SIZES.length],
+      shape: SHAPES[visualIndex % SHAPES.length],
+    };
+    const spot = findSpot(title, activeStars);
+    const nextStar: Star = {
+      id: crypto.randomUUID(),
+      skyId: activeSkyId,
+      createdAt: new Date().toISOString(),
+      title,
+      note,
+      showTitle: true,
+      color: visual.color,
+      customColor: null,
+      size: visual.size,
+      shape: visual.shape,
+      x: spot.x,
+      y: spot.y,
+    };
+
+    if (shouldAnimate) {
+      setBirthEffect({
+        star: nextStar,
+        startX: 50,
+        startY: 90,
+      });
+    } else {
+      setStars((current) => [...current, nextStar]);
+      if (shouldSelect) setSelectedStarId(nextStar.id);
+    }
+
+    setComposer({ title: "", note: "" });
+    setComposerOpen(false);
+    return true;
+  }
+
+  function executePendingNavigation(action: PendingNavigation) {
+    setPendingNavigation(null);
+    setOverlayPanel(null);
+
+    if (action.type === "show-sky-root") {
+      clearTransientPanels("sky");
+      return;
+    }
+
+    if (action.skyId === activeSkyId) {
+      if (action.afterSwitch?.mode === "composer") {
+        focusComposer();
+        return;
+      }
+      if (action.afterSwitch?.mode === "constellation") {
+        startConstellationMode();
+        return;
+      }
+      clearTransientPanels(action.surfaceMode, { preserveSelection: action.surfaceMode === "journal" });
+      return;
+    }
+
+    setSurfaceMode(action.surfaceMode);
+    setPendingSkyAction(action.afterSwitch ?? null);
+    setActiveSkyId(action.skyId);
+    setSkyMenuId(null);
+  }
+
+  function requestNavigation(action: PendingNavigation) {
+    if (dirtyContext) {
+      setPendingNavigation(action);
+      setSkyMenuId(null);
+      setOverlayPanel("unsaved-changes");
+      return;
+    }
+    executePendingNavigation(action);
+  }
+
+  function discardCurrentChanges() {
+    if (dirtyContext === "composer") {
+      setComposer({ title: "", note: "" });
+      setComposerOpen(false);
+      return;
+    }
+    if (dirtyContext === "sky") {
+      cancelSkyEditor();
+      return;
+    }
+    if (dirtyContext === "star") {
+      cancelStarEditor();
+      return;
+    }
+    if (dirtyContext === "constellation") {
+      resetConstellationDraft(true);
+    }
+  }
+
+  function saveCurrentChanges() {
+    if (dirtyContext === "composer") return commitComposerStar({ animate: false, select: false });
+    if (dirtyContext === "sky") {
+      saveSkyEditor();
+      return true;
+    }
+    if (dirtyContext === "star") {
+      saveStarEditor();
+      return true;
+    }
+    if (dirtyContext === "constellation" && constellationDraftStarIds.length >= 2) {
+      saveConstellation();
+      return true;
+    }
+    return false;
+  }
+
   function reorderSkies(fromId: string, toId: string) {
     if (fromId === toId) return;
     setSkies((current) => {
@@ -927,29 +1412,43 @@ export function App() {
     });
   }
 
-  function deleteActiveSky() {
+  function requestDeleteSky(skyId: string) {
+    setSkyMenuId(null);
+    setPendingDeleteSkyId(skyId);
+    setOverlayPanel("delete-sky");
+  }
+
+  function deletePendingSky() {
+    const targetSkyId = pendingDeleteSkyId ?? activeSkyId;
     if (skies.length <= 1) {
-      setOverlayPanel(null);
+      closeOverlay();
       return;
     }
 
-    const remainingSkies = skies.filter((sky) => sky.id !== activeSkyId);
+    const remainingSkies = skies.filter((sky) => sky.id !== targetSkyId);
     const nextSky = remainingSkies[0];
     if (!nextSky) return;
 
     setSkies(remainingSkies);
-    setStars((current) => current.filter((star) => star.skyId !== activeSkyId));
-    setConstellations((current) => current.filter((item) => item.skyId !== activeSkyId));
-    setActiveSkyId(nextSky.id);
-    setSelectedStarId(null);
-    setStarEditor(null);
-    setConstellationMode(false);
-    setEditingConstellationId(null);
-    setDraftConstellationName("");
-    setDraftConstellationStarIds([]);
-    setBirthEffect((current) => (current?.star.skyId === activeSkyId ? null : current));
+    setStars((current) => current.filter((star) => star.skyId !== targetSkyId));
+    setConstellations((current) => current.filter((item) => item.skyId !== targetSkyId));
+    setBirthEffect((current) => (current?.star.skyId === targetSkyId ? null : current));
     setPendingConstellationJoin(null);
-    setOverlayPanel(null);
+
+    if (activeSkyId === targetSkyId) {
+      setActiveSkyId(nextSky.id);
+      setSelectedStarId(null);
+      setStarEditor(null);
+      setConstellationMode(false);
+      setEditingConstellationId(null);
+      setDraftConstellationName("");
+      setDraftConstellationStarIds([]);
+      setEditingSky(false);
+      setSkyEditor(null);
+      setComposerOpen(false);
+    }
+
+    closeOverlay();
   }
 
   function deleteSelectedStar() {
@@ -1001,6 +1500,8 @@ export function App() {
     setPendingConstellationJoin(null);
     setMoveTargetSkyId("");
     setNewSkyName("");
+    setPendingNavigation(null);
+    setPendingDeleteSkyId(null);
   }
 
   function resetConstellationDraft(closeMode = false) {
@@ -1035,35 +1536,7 @@ export function App() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canCreateStar) return;
-    const title = safeTitle(composer.title, composer.note);
-    const note = sanitizeNote(composer.note);
-    const visualIndex = activeStars.length;
-    const visual = {
-      color: COLORS[visualIndex % COLORS.length],
-      size: SIZES[visualIndex % SIZES.length],
-      shape: SHAPES[visualIndex % SHAPES.length],
-    };
-    const spot = findSpot(title, activeStars);
-    setBirthEffect({
-      star: {
-        id: crypto.randomUUID(),
-        skyId: activeSkyId,
-        createdAt: new Date().toISOString(),
-        title,
-        note,
-        showTitle: true,
-        color: visual.color,
-        customColor: null,
-        size: visual.size,
-        shape: visual.shape,
-        x: spot.x,
-        y: spot.y,
-      },
-      startX: 50,
-      startY: 90,
-    });
-    setComposer({ title: "", note: "" });
-    setComposerOpen(false);
+    commitComposerStar({ animate: true, select: true });
   }
 
   function handleStarPointerDown(event: ReactPointerEvent<HTMLButtonElement>, star: Star) {
@@ -1112,6 +1585,7 @@ export function App() {
     setSelectedStarId(null);
     setStarEditor(null);
     setEditingSky(false);
+    setSkyEditor(null);
     setComposerOpen(true);
     setConstellationMode(false);
     setEditingConstellationId(null);
@@ -1134,8 +1608,42 @@ export function App() {
     }
   }
 
+  function beginEditSky() {
+    setSurfaceMode("sky");
+    setSelectedStarId(null);
+    setStarEditor(null);
+    setComposerOpen(false);
+    setConstellationMode(false);
+    setEditingConstellationId(null);
+    setDraftConstellationName("");
+    setDraftConstellationStarIds([]);
+    setEditingSky(true);
+    setSkyEditor({
+      name: activeSky.name,
+      theme: activeSky.theme,
+    });
+  }
+
+  function cancelSkyEditor() {
+    setEditingSky(false);
+    setSkyEditor(null);
+  }
+
+  function saveSkyEditor() {
+    if (!skyEditor) return;
+    updateSky((current) => ({
+      ...current,
+      name: sanitizeSkyName(skyEditor.name),
+      theme: skyEditor.theme,
+    }));
+    setEditingSky(false);
+    setSkyEditor(null);
+  }
+
   function beginEditSelectedStar() {
     if (!selectedStar) return;
+    setEditingSky(false);
+    setSkyEditor(null);
     setStarEditor({
       id: selectedStar.id,
       title: selectedStar.title,
@@ -1169,6 +1677,146 @@ export function App() {
 
   const editorPreviewTitle = starEditor ? safeTitle(starEditor.title, starEditor.note) : "";
   const editorPreviewNote = starEditor ? sanitizeNote(starEditor.note) : "";
+
+  function renderStarEditorForm(prefix: string) {
+    if (!starEditor) return null;
+
+    return (
+      <div className="editor-shell">
+        <section className="editor-section">
+          <div className="editor-section-head">
+            <span className="editor-label">Contenido</span>
+          </div>
+
+          <label htmlFor={`${prefix}-edit-title`}>Titulo</label>
+          <input
+            id={`${prefix}-edit-title`}
+            maxLength={MAX_TITLE}
+            type="text"
+            value={starEditor.title}
+            onChange={(event) => setStarEditor((current) => (current ? { ...current, title: event.target.value } : current))}
+          />
+
+          <label htmlFor={`${prefix}-edit-note`}>Nota</label>
+          <textarea
+            id={`${prefix}-edit-note`}
+            maxLength={MAX_NOTE}
+            rows={6}
+            value={starEditor.note}
+            onChange={(event) => setStarEditor((current) => (current ? { ...current, note: event.target.value } : current))}
+          />
+
+          <div className="field-meta">
+            <span className={starEditor.title.length > SOFT_TITLE ? "field-warning" : ""}>Titulo {starEditor.title.length}/{MAX_TITLE}</span>
+            <span className={starEditor.note.length > SOFT_NOTE ? "field-warning" : ""}>Nota {starEditor.note.length}/{MAX_NOTE}</span>
+          </div>
+        </section>
+
+        <section className="editor-section">
+          <div className="editor-section-head">
+            <span className="editor-label">Aspecto</span>
+          </div>
+
+          <div className="swatch-row">
+            {COLORS.map((color) => (
+              <button
+                key={color}
+                aria-label={`Color ${toneText(color)}`}
+                aria-pressed={starEditor.color === color}
+                className={`swatch-button swatch-${color}${starEditor.color === color ? " swatch-button-active" : ""}`}
+                onClick={() => setStarEditor((current) => (current ? { ...current, color, customColor: current.customColor } : current))}
+                title={toneText(color)}
+                type="button"
+              />
+            ))}
+          </div>
+
+          <div className="editor-custom-row">
+            <label htmlFor={`${prefix}-custom-color`}>Color personalizado</label>
+            <input
+              className="editor-color-picker"
+              id={`${prefix}-custom-color`}
+              type="color"
+              value={starEditor.customColor ?? "#ff8dc9"}
+              onChange={(event) => setStarEditor((current) => (current ? { ...current, color: "custom", customColor: event.target.value } : current))}
+            />
+          </div>
+
+          <div className="editor-select-grid">
+            <div className="editor-select-field">
+              <label htmlFor={`${prefix}-edit-shape`}>Forma</label>
+              <select
+                id={`${prefix}-edit-shape`}
+                value={starEditor.shape}
+                onChange={(event) => setStarEditor((current) => (current ? { ...current, shape: event.target.value as StarShape } : current))}
+              >
+                {EDITOR_SHAPES.map((shape) => (
+                  <option key={shape} value={shape}>
+                    {shapeText(shape)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="editor-select-field">
+              <label htmlFor={`${prefix}-edit-size`}>Tamano</label>
+              <select
+                id={`${prefix}-edit-size`}
+                value={starEditor.size}
+                onChange={(event) => setStarEditor((current) => (current ? { ...current, size: event.target.value as StarSize } : current))}
+              >
+                {EDITOR_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {sizeText(size)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section className="editor-section">
+          <div className="editor-section-head">
+            <span className="editor-label">Visibilidad</span>
+          </div>
+
+          <button
+            className={`inline-toggle${starEditor.showTitle ? " inline-toggle-active" : ""}`}
+            onClick={() => setStarEditor((current) => (current ? { ...current, showTitle: !current.showTitle } : current))}
+            type="button"
+          >
+            {starEditor.showTitle ? "Ocultar titulo en el cielo" : "Mostrar titulo en el cielo"}
+          </button>
+        </section>
+
+        <section className="editor-preview-card editor-preview-card-final">
+          <div className="editor-section-head">
+            <span className="editor-label">Vista previa</span>
+          </div>
+
+          <div className="editor-preview-scene">
+            <span
+              className={`atlas-star editor-preview-star atlas-star-${starEditor.size} atlas-star-${starEditor.shape}`}
+              style={{ color: starColorValue(starEditor.color, starEditor.customColor) }}
+            />
+            <div className="editor-preview-copy">
+              <strong>{editorPreviewTitle}</strong>
+              <span>{excerpt(editorPreviewNote || editorPreviewTitle, 72)}</span>
+            </div>
+          </div>
+        </section>
+
+        <div className="button-row button-row-editor">
+          <button className="toolbar-button toolbar-button-primary" onClick={saveStarEditor} type="button">
+            Guardar cambios
+          </button>
+          <button className="toolbar-button toolbar-button-ghost" onClick={cancelStarEditor} type="button">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function saveConstellation() {
     if (draftConstellationStarIds.length < 2) return;
@@ -1262,18 +1910,7 @@ export function App() {
 
   function openSkyMenuAction(skyId: string, mode: "composer" | "constellation") {
     setSkyMenuId(null);
-
-    if (skyId === activeSkyId) {
-      if (mode === "composer") {
-        focusComposer();
-      } else {
-        startConstellationMode();
-      }
-      return;
-    }
-
-    setPendingSkyAction({ skyId, mode });
-    setActiveSkyId(skyId);
+    requestNavigation({ type: "activate-sky", skyId, afterSwitch: { skyId, mode }, surfaceMode: "sky" });
   }
 
   function handleSkyDragStart(event: ReactDragEvent<HTMLDivElement>, skyId: string) {
@@ -1395,7 +2032,7 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-surface={surfaceMode}>
       <header className="top-toolbar">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true">
@@ -1405,6 +2042,25 @@ export function App() {
             <p className="eyebrow">Setestrelo</p>
             <strong>Diario de cielos</strong>
           </div>
+        </div>
+
+        <div className="toolbar-trail" aria-label="Ubicacion actual">
+          <button
+            className={`toolbar-trail-link${toolbarContextLabel ? "" : " toolbar-trail-link-static"}`}
+            disabled={!toolbarContextLabel}
+            onClick={() => requestNavigation({ type: "show-sky-root" })}
+            type="button"
+          >
+            {displaySkyName(activeSky.name)}
+          </button>
+          {toolbarContextLabel ? (
+            <>
+              <span className="toolbar-trail-separator" aria-hidden="true">
+                {"\u203A"}
+              </span>
+              <span className="toolbar-trail-current">{toolbarContextLabel}</span>
+            </>
+          ) : null}
         </div>
 
         <div className="toolbar-actions">
@@ -1423,6 +2079,15 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {storageNotice ? (
+        <section className="storage-notice">
+          <p>{storageNotice}</p>
+          <button className="mini-tool-button" onClick={() => setStorageNotice("")} type="button">
+            Entendido
+          </button>
+        </section>
+      ) : null}
 
       <div className="atlas-layout">
         <aside className="sky-rail">
@@ -1452,10 +2117,7 @@ export function App() {
                       className={`sky-tab sky-tab-rail${sky.id === activeSkyId ? " sky-tab-active" : ""}`}
                       data-sky-id={sky.id}
                       data-theme={sky.theme}
-                      onClick={() => {
-                        setActiveSkyId(sky.id);
-                        setSkyMenuId(null);
-                      }}
+                      onClick={() => requestNavigation({ type: "activate-sky", skyId: sky.id, surfaceMode })}
                       type="button"
                     >
                       <span className="sky-tab-copy">
@@ -1487,6 +2149,9 @@ export function App() {
                         <button className="sky-tab-menu-item" onClick={() => toggleSkyTitles(sky.id)} type="button">
                           {sky.showTitles ? "🏷 Titulos: si" : "🏷 Titulos: no"}
                         </button>
+                        <button className="sky-tab-menu-item" disabled={skies.length <= 1} onClick={() => requestDeleteSky(sky.id)} type="button">
+                          {"\u{1F5D1} Eliminar cielo"}
+                        </button>
                       </div>
                     ) : null}
                   </div>
@@ -1511,7 +2176,6 @@ export function App() {
               <h1>{displaySkyName(activeSky.name)}</h1>
             </div>
             <div className="journal-header-side">
-              <p className="journal-copy">Entradas ordenadas por fecha, con lectura tranquila y edicion fuera del cielo.</p>
               <div className="journal-header-actions">
                 <button className="toolbar-button toolbar-button-ghost" onClick={() => setSurfaceMode("sky")} type="button">
                   {"\u{1F30C} Volver al cielo"}
@@ -1564,111 +2228,24 @@ export function App() {
                       <p className="panel-label">{editingSelectedStar ? "Editar entrada" : "Entrada abierta"}</p>
                       <h2>{editingSelectedStar ? editorPreviewTitle : selectedStar.title}</h2>
                     </div>
-                    <button className="mini-tool-button" onClick={editingSelectedStar ? cancelStarEditor : beginEditSelectedStar} type="button">
-                      {editingSelectedStar ? "✕ Cerrar" : "✎ Editar"}
-                    </button>
+                    {editingSelectedStar ? (
+                      <div className="card-title-actions">
+                        <button className="mini-tool-button mini-tool-button-danger mini-tool-button-icon" onClick={() => setOverlayPanel("delete-star")} title="Borrar estrella" type="button">
+                          {"\u{1F5D1}"}
+                        </button>
+                        <button className="mini-tool-button" onClick={cancelStarEditor} type="button">
+                          ✕ Cerrar
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="mini-tool-button" onClick={beginEditSelectedStar} type="button">
+                        ✎ Editar
+                      </button>
+                    )}
                   </div>
 
                   {editingSelectedStar && starEditor ? (
-                    <>
-                      <label htmlFor="journal-edit-title">Titulo</label>
-                      <input
-                        id="journal-edit-title"
-                        maxLength={MAX_TITLE}
-                        type="text"
-                        value={starEditor.title}
-                        onChange={(event) => setStarEditor((current) => (current ? { ...current, title: event.target.value } : current))}
-                      />
-
-                      <label htmlFor="journal-edit-note">Nota</label>
-                      <textarea
-                        id="journal-edit-note"
-                        maxLength={MAX_NOTE}
-                        rows={6}
-                        value={starEditor.note}
-                        onChange={(event) => setStarEditor((current) => (current ? { ...current, note: event.target.value } : current))}
-                      />
-
-                      <div className="field-meta">
-                        <span className={starEditor.title.length > SOFT_TITLE ? "field-warning" : ""}>{starEditor.title.length}/{MAX_TITLE}</span>
-                        <span className={starEditor.note.length > SOFT_NOTE ? "field-warning" : ""}>{starEditor.note.length}/{MAX_NOTE}</span>
-                      </div>
-
-                      <div className="editor-preview-card">
-                        <span className="editor-label">Vista previa</span>
-                        <div className="editor-preview-scene">
-                          <span
-                            className={`atlas-star editor-preview-star atlas-star-${starEditor.size} atlas-star-${starEditor.shape}`}
-                            style={{ color: starColorValue(starEditor.color, starEditor.customColor) }}
-                          />
-                          <div className="editor-preview-copy">
-                            <strong>{editorPreviewTitle}</strong>
-                            <span>{excerpt(editorPreviewNote || editorPreviewTitle, 54)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="editor-group">
-                        <span className="editor-label">Aspecto</span>
-                        <div className="swatch-row">
-                          {COLORS.map((color) => (
-                            <button
-                              key={color}
-                              aria-label={`Color ${toneText(color)}`}
-                              aria-pressed={starEditor.color === color}
-                              className={`swatch-button swatch-${color}${starEditor.color === color ? " swatch-button-active" : ""}`}
-                              onClick={() => setStarEditor((current) => (current ? { ...current, color, customColor: current.customColor } : current))}
-                              title={toneText(color)}
-                              type="button"
-                            />
-                          ))}
-                        </div>
-                        <input
-                          id="journal-custom-color"
-                          type="color"
-                          value={starEditor.customColor ?? "#ff8dc9"}
-                          onChange={(event) => setStarEditor((current) => (current ? { ...current, color: "custom", customColor: event.target.value } : current))}
-                        />
-                        <div className="shape-row">
-                          {(["orb", "diamond", "spark", "heart"] as StarShape[]).map((shape) => (
-                            <button
-                              key={shape}
-                              aria-pressed={starEditor.shape === shape}
-                              className={`shape-button${starEditor.shape === shape ? " shape-button-active" : ""}`}
-                              onClick={() => setStarEditor((current) => (current ? { ...current, shape } : current))}
-                              type="button"
-                            >
-                              {starEditor.shape === shape ? `✦ ${shapeText(shape)}` : shapeText(shape)}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="shape-row">
-                          {(["s", "m", "l"] as StarSize[]).map((size) => (
-                            <button
-                              key={size}
-                              aria-pressed={starEditor.size === size}
-                              className={`shape-button${starEditor.size === size ? " shape-button-active" : ""}`}
-                              onClick={() => setStarEditor((current) => (current ? { ...current, size } : current))}
-                              type="button"
-                            >
-                              {starEditor.size === size ? `✦ ${sizeText(size)}` : sizeText(size)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="button-row">
-                        <button className="toolbar-button" onClick={saveStarEditor} type="button">
-                          Guardar cambios
-                        </button>
-                        <button className="toolbar-button toolbar-button-danger" onClick={() => setOverlayPanel("delete-star")} type="button">
-                          {"\u{1F5D1} Borrar estrella"}
-                        </button>
-                        <button className="toolbar-button toolbar-button-ghost" onClick={cancelStarEditor} type="button">
-                          Cancelar
-                        </button>
-                      </div>
-                    </>
+                    renderStarEditorForm("journal")
                   ) : (
                     <>
                       <div className="journal-meta-row">
@@ -1684,9 +2261,6 @@ export function App() {
                       <div className="button-row">
                         <button className="toolbar-button toolbar-button-ghost" onClick={() => setSurfaceMode("sky")} type="button">
                           Volver al cielo
-                        </button>
-                        <button className="toolbar-button toolbar-button-danger" onClick={() => setOverlayPanel("delete-star")} type="button">
-                          {"\u{1F5D1} Borrar estrella"}
                         </button>
                       </div>
 
@@ -1714,20 +2288,18 @@ export function App() {
       ) : (
       <section className="workspace">
         <div className="sky-frame">
-          <div className="sky-header">
-            <div className="sky-header-copy">
-              <div className="sky-header-title-row">
-                <strong>{displaySkyName(activeSky.name)}</strong>
-                <span className="sky-header-summary">
-                  {usedCapacity}/{activeSky.capacity} luces · {activeConstellations.length} constelaciones
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div key={activeSkyId} className="sky-panel" data-theme={activeSky.theme} onPointerDown={handleSkyBackgroundPointerDown} ref={skyPanelRef}>
+          <div key={activeSkyId} className="sky-panel" data-theme={liveSkyTheme} onPointerDown={handleSkyBackgroundPointerDown} ref={skyPanelRef}>
             <div className="sky-gradient" />
+            <div className="sky-photo sky-photo-main" />
+            <div className="sky-photo sky-photo-texture" />
             <div className="sky-veil" />
+            <div className={`sky-orbital-body sky-orbital-body-moon moon-phase-${moonPhase.key}`} style={moonPhaseStyle} title={moonPhase.name} />
+            <div className="sky-orbital-body sky-orbital-body-saturn" />
+            <div className="sky-orbital-body sky-orbital-body-earth" />
+            <div className="sky-orbital-body sky-orbital-body-neptune" />
+            <div className="sky-orbital-body sky-orbital-body-jupiter" />
+            <div className="sky-orbital-body sky-orbital-body-venus" />
+            <div className="sky-orbital-body sky-orbital-body-mercury" />
             <div className="sky-nebula sky-nebula-a" />
             <div className="sky-nebula sky-nebula-b" />
             <div className="sky-nebula sky-nebula-c" />
@@ -1784,6 +2356,35 @@ export function App() {
             <span className="shooting-star shooting-star-a" />
             <span className="shooting-star shooting-star-b" />
             <span className="shooting-star shooting-star-c" />
+
+            <AnimatePresence mode="sync">
+              {meditationRunning ? (
+                <div className="meditation-layer" key={`meditation-${activeSkyId}`}>
+                  {meditationLines.map((line) => (
+                    <motion.div
+                      key={line.key}
+                      className={`meditation-line meditation-line-${line.motion} meditation-line-${line.emphasis}`}
+                      style={{
+                        top: `${line.top}%`,
+                        left: "50%",
+                      }}
+                      initial={{ x: "-50%", y: 16, opacity: 0, filter: "blur(10px)", scale: 0.985 }}
+                      animate={{
+                        x: ["-50%", "-50%", "-50%", "-50%", "-50%"],
+                        y: [16, 5, 0, -4, -14],
+                        opacity: [0, 0.26, 0.72, 0.7, 0],
+                        filter: ["blur(10px)", "blur(1px)", "blur(0px)", "blur(0px)", "blur(10px)"],
+                        scale: [0.985, 1, 1.008, 1.01, 0.996],
+                      }}
+                      exit={{ opacity: 0, filter: "blur(8px)", transition: { duration: 2.4, ease: "easeInOut" } }}
+                      transition={{ duration: line.duration, delay: line.delay, ease: "easeInOut", times: [0, 0.18, 0.38, 0.78, 1] }}
+                    >
+                      <span>{line.text}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : null}
+            </AnimatePresence>
 
             <svg className="constellation-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
@@ -1892,12 +2493,6 @@ export function App() {
             <>
               <section className="inspector-card">
                 <p className="panel-label">{editingConstellation ? "Editar constelacion" : "Modo constelacion"}</p>
-                <p className="inspector-compact-lead">{editingConstellation ? "Ajusta una constelacion existente." : "Une estrellas en un orden propio."}</p>
-                <p className="inspector-compact-copy">
-                  {editingConstellation
-                    ? "Puedes anadir o quitar estrellas y renombrar la constelacion desde aqui."
-                    : "Selecciona dos o mas estrellas del cielo activo. La linea se dibuja recta entre sus centros."}
-                </p>
 
                 <label htmlFor="constellation-name">Nombre</label>
                 <input
@@ -2005,109 +2600,7 @@ export function App() {
                 </div>
 
                 {editingSelectedStar && starEditor ? (
-                  <>
-                    <label htmlFor="edit-title">Titulo</label>
-                    <input
-                      id="edit-title"
-                      maxLength={MAX_TITLE}
-                      type="text"
-                      value={starEditor.title}
-                      onChange={(event) => setStarEditor((current) => (current ? { ...current, title: event.target.value } : current))}
-                    />
-
-                    <label htmlFor="edit-note">Nota</label>
-                    <textarea
-                      id="edit-note"
-                      maxLength={MAX_NOTE}
-                      rows={6}
-                      value={starEditor.note}
-                      onChange={(event) => setStarEditor((current) => (current ? { ...current, note: event.target.value } : current))}
-                    />
-
-                    <div className="field-meta">
-                      <span className={starEditor.title.length > SOFT_TITLE ? "field-warning" : ""}>{starEditor.title.length}/{MAX_TITLE}</span>
-                      <span className={starEditor.note.length > SOFT_NOTE ? "field-warning" : ""}>{starEditor.note.length}/{MAX_NOTE}</span>
-                    </div>
-
-                    <div className="editor-preview-card">
-                      <span className="editor-label">Vista previa</span>
-                      <div className="editor-preview-scene">
-                        <span
-                          className={`atlas-star editor-preview-star atlas-star-${starEditor.size} atlas-star-${starEditor.shape}`}
-                          style={{ color: starColorValue(starEditor.color, starEditor.customColor) }}
-                        />
-                        <div className="editor-preview-copy">
-                          <strong>{editorPreviewTitle}</strong>
-                          <span>{excerpt(editorPreviewNote || editorPreviewTitle, 54)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="editor-group">
-                      <span className="editor-label">Aspecto</span>
-                      <div className="swatch-row">
-                        {COLORS.map((color) => (
-                          <button
-                            key={color}
-                            aria-label={`Color ${toneText(color)}`}
-                            aria-pressed={starEditor.color === color}
-                            className={`swatch-button swatch-${color}${starEditor.color === color ? " swatch-button-active" : ""}`}
-                            onClick={() => setStarEditor((current) => (current ? { ...current, color, customColor: current.customColor } : current))}
-                            title={toneText(color)}
-                            type="button"
-                          />
-                        ))}
-                      </div>
-
-                      <input
-                        id="custom-color"
-                        type="color"
-                        value={starEditor.customColor ?? "#ff8dc9"}
-                        onChange={(event) => setStarEditor((current) => (current ? { ...current, color: "custom", customColor: event.target.value } : current))}
-                      />
-
-                      <div className="shape-row">
-                        {(["orb", "diamond", "spark", "heart"] as StarShape[]).map((shape) => (
-                          <button
-                            key={shape}
-                            aria-pressed={starEditor.shape === shape}
-                            className={`shape-button${starEditor.shape === shape ? " shape-button-active" : ""}`}
-                            onClick={() => setStarEditor((current) => (current ? { ...current, shape } : current))}
-                            type="button"
-                          >
-                            {starEditor.shape === shape ? `✦ ${shapeText(shape)}` : shapeText(shape)}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="shape-row">
-                        {(["s", "m", "l"] as StarSize[]).map((size) => (
-                          <button
-                            key={size}
-                            aria-pressed={starEditor.size === size}
-                            className={`shape-button${starEditor.size === size ? " shape-button-active" : ""}`}
-                            onClick={() => setStarEditor((current) => (current ? { ...current, size } : current))}
-                            type="button"
-                          >
-                            {starEditor.size === size ? `✦ ${sizeText(size)}` : sizeText(size)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button className="inline-toggle" onClick={() => setStarEditor((current) => (current ? { ...current, showTitle: !current.showTitle } : current))} type="button">
-                      {starEditor.showTitle ? "Ocultar titulo en el cielo" : "Mostrar titulo en el cielo"}
-                    </button>
-
-                    <div className="button-row">
-                      <button className="toolbar-button" onClick={saveStarEditor} type="button">
-                        Guardar
-                      </button>
-                      <button className="toolbar-button toolbar-button-ghost" onClick={cancelStarEditor} type="button">
-                        Cancelar
-                      </button>
-                    </div>
-                  </>
+                  renderStarEditorForm("inspector")
                 ) : (
                   <>
                     {selectedStarHasDistinctNote ? (
@@ -2219,37 +2712,106 @@ export function App() {
                   <div>
                     <h2>{displaySkyName(activeSky.name)}</h2>
                   </div>
-                  <button className="mini-tool-button" onClick={() => setEditingSky((current) => !current)} type="button">
-                    {editingSky ? "✕ Cerrar" : "✎ Editar"}
-                  </button>
+                  {editingSky ? (
+                    <div className="card-title-actions">
+                      <button
+                        className="mini-tool-button mini-tool-button-danger mini-tool-button-icon"
+                        disabled={skies.length <= 1}
+                        onClick={() => setOverlayPanel("delete-sky")}
+                        title="Borrar cielo"
+                        type="button"
+                      >
+                        {"\u{1F5D1}"}
+                      </button>
+                      <button className="mini-tool-button" onClick={cancelSkyEditor} type="button">
+                        ✕ Cerrar
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="mini-tool-button" onClick={beginEditSky} type="button">
+                      ✎ Editar
+                    </button>
+                  )}
                 </div>
 
-                {editingSky ? (
+                {editingSky && skyEditor ? (
                   <>
-                    <label htmlFor="sky-name">Nombre del cielo</label>
-                    <input id="sky-name" type="text" value={activeSky.name} onChange={(event) => updateSky((current) => ({ ...current, name: event.target.value }))} />
+                    <div className="editor-shell">
+                      <section className="editor-section">
+                        <div className="editor-section-head">
+                          <span className="editor-label">Nombre</span>
+                        </div>
 
-                    <div className="editor-group">
-                      <span className="editor-label">Tema visual</span>
-                      <div className="shape-row">
-                        {THEMES.map((theme) => (
-                          <button
-                            key={theme}
-                            aria-pressed={activeSky.theme === theme}
-                            className={`theme-button${activeSky.theme === theme ? " theme-button-active" : ""}`}
-                            onClick={() => updateSky((current) => ({ ...current, theme }))}
-                            type="button"
-                          >
-                            {activeSky.theme === theme ? `✦ ${themeText(theme)}` : themeText(theme)}
-                          </button>
-                        ))}
+                        <input
+                          aria-label="Nombre del cielo"
+                          id="sky-name"
+                          maxLength={MAX_SKY_NAME}
+                          placeholder="Nombre del cielo"
+                          type="text"
+                          value={skyEditor.name}
+                          onChange={(event) => setSkyEditor((current) => (current ? { ...current, name: event.target.value } : current))}
+                        />
+
+                        <div className="field-meta">
+                          <span className={skyEditor.name.length > SOFT_SKY_NAME ? "field-warning" : ""}>
+                            {skyEditor.name.length}/{MAX_SKY_NAME}
+                          </span>
+                        </div>
+                      </section>
+
+                      <section className="editor-section">
+                        <div className="editor-section-head">
+                          <span className="editor-label">Tema</span>
+                          <p className="editor-hint">Elige el ambiente visual general del cielo activo.</p>
+                        </div>
+
+                        <div className="theme-current-row" data-theme={skyEditor.theme}>
+                          <span className="theme-current-marker" aria-hidden="true" />
+                          <div className="theme-preview-copy">
+                            <strong>{themeText(skyEditor.theme)}</strong>
+                            <span>{themeMoodText(skyEditor.theme)}</span>
+                          </div>
+                          <span className="theme-swatch-status">Activa</span>
+                        </div>
+
+                        <div className="theme-catalog">
+                          {THEME_GROUPS.map((group) => (
+                            <div key={group.label} className="theme-group">
+                              <span className="editor-label">{group.label}</span>
+                              <div className="theme-grid">
+                                {group.themes.map((theme) => (
+                                  <button
+                                    key={theme}
+                                    aria-pressed={skyEditor.theme === theme}
+                                    className={`theme-swatch-card${skyEditor.theme === theme ? " theme-swatch-card-active" : ""}`}
+                                    data-theme={theme}
+                                    onClick={() => setSkyEditor((current) => (current ? { ...current, theme } : current))}
+                                    type="button"
+                                  >
+                                    <span className="theme-swatch-marker" aria-hidden="true" />
+                                    <span className="theme-swatch-copy">
+                                      <strong>{themeText(theme)}</strong>
+                                      <span>{themeMoodText(theme)}</span>
+                                    </span>
+                                    <span className={`theme-swatch-check${skyEditor.theme === theme ? " theme-swatch-check-active" : ""}`} aria-hidden="true">
+                                      {skyEditor.theme === theme ? "✓" : ""}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <div className="button-row button-row-editor">
+                        <button className="toolbar-button toolbar-button-primary" onClick={saveSkyEditor} type="button">
+                          Guardar cambios
+                        </button>
+                        <button className="toolbar-button toolbar-button-ghost" onClick={cancelSkyEditor} type="button">
+                          Cancelar
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="button-row">
-                      <button className="toolbar-button toolbar-button-danger" disabled={skies.length <= 1} onClick={() => setOverlayPanel("delete-sky")} type="button">
-                        {"\u{1F5D1} Borrar cielo"}
-                      </button>
                     </div>
                   </>
                 ) : (
@@ -2291,6 +2853,14 @@ export function App() {
           </div>
 
           <div className="inspector-panel-footer">
+            <button
+              className={`toolbar-button toolbar-button-sky inspector-rail-secondary${meditationMode ? " toolbar-button-active" : ""}`}
+              disabled={activeStars.length === 0 && !meditationMode}
+              onClick={() => setMeditationMode((current) => !current)}
+              type="button"
+            >
+              {meditationButtonText}
+            </button>
             <button
               className={`toolbar-button toolbar-button-primary inspector-rail-create${composerOpen ? " inspector-rail-create-active" : ""}`}
               disabled={Boolean(birthEffect) || skyFull}
@@ -2364,14 +2934,14 @@ export function App() {
                   <h2>Quieres soltar este cielo completo?</h2>
                   <div className="help-copy">
                     <p>
-                      Se borrara <strong>{displaySkyName(activeSky.name)}</strong> junto con sus {activeStars.length} estrellas y {activeConstellations.length} constelaciones.
+                      Se borrara <strong>{displaySkyName(deleteTargetSky.name)}</strong> junto con sus {deleteTargetStars.length} estrellas y {deleteTargetConstellations.length} constelaciones.
                     </p>
                     <p>Esta accion no se puede deshacer desde la app. Si quieres conservarlo, exporta antes un backup.</p>
                     {skies.length <= 1 ? <p>Necesitas al menos un cielo en el atlas, asi que no puedes borrar el unico cielo disponible.</p> : null}
                   </div>
 
                   <div className="button-row">
-                    <button className="toolbar-button toolbar-button-danger" disabled={skies.length <= 1} onClick={deleteActiveSky} type="button">
+                    <button className="toolbar-button toolbar-button-danger" disabled={skies.length <= 1} onClick={deletePendingSky} type="button">
                       {"\u{1F5D1} Si, borrar cielo"}
                     </button>
                     <button className="toolbar-button toolbar-button-ghost" onClick={closeOverlay} type="button">
@@ -2495,6 +3065,59 @@ export function App() {
                     </button>
                     <button className="toolbar-button toolbar-button-ghost" onClick={closeOverlay} type="button">
                       Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : overlayPanel === "unsaved-changes" ? (
+                <>
+                  <p className="panel-label">Cambios sin guardar</p>
+                  <h2>Quieres guardar antes de salir?</h2>
+                  <div className="help-copy">
+                    <p>
+                      {dirtyContext === "sky"
+                        ? "Has cambiado el nombre o el tema de este cielo."
+                        : dirtyContext === "star"
+                          ? "Has modificado el contenido o el aspecto de esta estrella."
+                          : dirtyContext === "constellation"
+                            ? "Has cambiado la constelacion que estabas tejiendo."
+                            : "Hay una estrella nueva a medio sembrar."}
+                    </p>
+                    <p>Si sigues sin guardar, esos cambios se cerraran para mostrar el cielo seleccionado.</p>
+                  </div>
+
+                  <div className="button-row">
+                    <button
+                      className="toolbar-button toolbar-button-primary"
+                      disabled={!canSaveDirtyContext}
+                      onClick={() => {
+                        if (!saveCurrentChanges()) return;
+                        if (pendingNavigation) executePendingNavigation(pendingNavigation);
+                        else closeOverlay();
+                      }}
+                      type="button"
+                    >
+                      Guardar y continuar
+                    </button>
+                    <button
+                      className="toolbar-button toolbar-button-ghost"
+                      onClick={() => {
+                        discardCurrentChanges();
+                        if (pendingNavigation) executePendingNavigation(pendingNavigation);
+                        else closeOverlay();
+                      }}
+                      type="button"
+                    >
+                      Descartar cambios
+                    </button>
+                    <button
+                      className="toolbar-button toolbar-button-ghost"
+                      onClick={() => {
+                        setPendingNavigation(null);
+                        closeOverlay();
+                      }}
+                      type="button"
+                    >
+                      Seguir aqui
                     </button>
                   </div>
                 </>

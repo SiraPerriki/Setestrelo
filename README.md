@@ -86,6 +86,7 @@ docs/
 - [Producto](./docs/atlas-de-luz-producto.md)
 - [Arquitectura](./docs/atlas-de-luz-arquitectura.md)
 - [Arte y UX](./docs/atlas-de-luz-arte-ui.md)
+- [Handoff de sesion 2026-04-03](./docs/session-handoff-2026-04-03.md)
 - [Handoff de sesion](./docs/session-handoff-2026-04-01.md)
 
 ## Persistencia y backups
