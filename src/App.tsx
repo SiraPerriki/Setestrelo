@@ -9,6 +9,7 @@ import {
   type DragEvent as ReactDragEvent,
   type FormEvent,
   type KeyboardEvent,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -54,6 +55,7 @@ type BirthEffect = {
   star: Star;
   startX: number;
   startY: number;
+  constellationId: string | null;
 };
 
 type AtlasState = {
@@ -67,6 +69,7 @@ type AtlasState = {
 type ComposerDraft = {
   title: string;
   note: string;
+  constellationId: string;
 };
 
 type StarEditorDraft = {
@@ -97,11 +100,11 @@ type OverlayPanel =
   | "confirm-import"
   | "unsaved-changes"
   | null;
-type SurfaceMode = "sky" | "journal";
+type SurfaceMode = "sky" | "journal" | "guide";
 type PendingSkyAction = { skyId: string; mode: "composer" | "constellation" } | null;
 type PendingConstellationJoin = { starId: string; constellationId: string } | null;
 type PendingNavigation =
-  | { type: "activate-sky"; skyId: string; afterSwitch?: PendingSkyAction; surfaceMode: SurfaceMode }
+  | { type: "activate-sky"; skyId: string; afterSwitch?: PendingSkyAction; surfaceMode: SurfaceMode; selectStarId?: string | null }
   | { type: "show-sky-root" };
 
 type DragSession = {
@@ -120,6 +123,12 @@ type StorageBootstrap = {
   state: AtlasState;
   notice: string;
   skipInitialPersist: boolean;
+  savedAt: string | null;
+  source: "default" | "localStorage" | "recovery" | "history" | "indexeddb";
+};
+type HistorySnapshot = {
+  savedAt: string;
+  state: AtlasState;
 };
 type MeditationPhrase = {
   id: string;
@@ -135,10 +144,39 @@ type MeditationLine = MeditationPhrase & {
   delay: number;
   duration: number;
 };
+type ResonanceLink = {
+  starId: string;
+  title: string;
+  skyId: string;
+  skyName: string;
+  sameSky: boolean;
+};
+type ResonanceSummary = {
+  outgoing: ResonanceLink[];
+  incoming: ResonanceLink[];
+  unresolved: string[];
+};
+
+type ResonancePath = {
+  path: string;
+  relation: "outgoing" | "incoming" | "mutual";
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  outgoing: boolean;
+  incoming: boolean;
+};
 
 const STORAGE_KEY = "atlas-de-luz-state-v4";
 const LEGACY_STORAGE_KEY = "atlas-de-luz-state-v3";
 const STORAGE_RECOVERY_KEY = "atlas-de-luz-state-recovery-v4";
+const STORAGE_HISTORY_KEY = "atlas-de-luz-history-v1";
+const STORAGE_PERSIST_DEBOUNCE_MS = 280;
+const STORAGE_HISTORY_LIMIT = 8;
+const STORAGE_HISTORY_MIN_INTERVAL_MS = 15_000;
+const INDEXED_DB_NAME = "setestrelo-local-db";
+const INDEXED_DB_VERSION = 1;
+const INDEXED_DB_STORE = "atlas";
+const INDEXED_DB_KEY = "current";
 const MAX_SKY_NAME = 36;
 const SOFT_SKY_NAME = 24;
 const MAX_TITLE = 48;
@@ -206,10 +244,44 @@ const FLOATING_MOTES = Array.from({ length: 22 }, (_, index) => ({
   span: 8 + (index % 4) * 2.2,
 }));
 
+const NEUTRAL_DUST = Array.from({ length: 64 }, (_, index) => ({
+  id: `neutral-dust-${index}`,
+  x: 4 + ((index * 11.7) % 92),
+  y: 6 + ((index * 14.9) % 84),
+  delay: (index % 9) * 0.46,
+  driftX: -2.2 + (index % 5) * 1.1,
+  driftY: -1.6 + (index % 7) * 0.52,
+  scale: 0.28 + (index % 6) * 0.14,
+}));
+
+const NEUTRAL_GLOW_MOTES = Array.from({ length: 20 }, (_, index) => ({
+  id: `neutral-glow-${index}`,
+  x: 10 + ((index * 17.2) % 78),
+  y: 14 + ((index * 19.1) % 68),
+  delay: (index % 5) * 0.9,
+  span: 12 + (index % 4) * 4,
+}));
+
 const DATE_FORMAT = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "short",
   year: "numeric",
+});
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const TOOLBAR_DAY_FORMAT = new Intl.DateTimeFormat("es-ES", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const TOOLBAR_TIME_FORMAT = new Intl.DateTimeFormat("es-ES", {
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 const DEFAULT_STATE: AtlasState = {
@@ -330,6 +402,28 @@ function excerpt(value: string, max = 86) {
   const compact = value.replace(/\s+/g, " ").trim();
   if (!compact) return "Sin nota larga todavia.";
   return compact.length > max ? `${compact.slice(0, max - 1).trim()}…` : compact;
+}
+
+function resonanceKey(value: string) {
+  return sanitizeTitle(value).toLocaleLowerCase("es-ES");
+}
+
+function stripResonanceMarkup(value: string) {
+  return value.replace(/\{([^{}]+)\}/g, (_, raw: string) => sanitizeTitle(raw) || "").replace(/\s+/g, " ").trim();
+}
+
+function extractResonanceTitles(value: string) {
+  const matches = value.matchAll(/\{([^{}]+)\}/g);
+  const seen = new Set<string>();
+  const titles: string[] = [];
+  for (const match of matches) {
+    const title = sanitizeTitle(match[1] ?? "");
+    const key = resonanceKey(title);
+    if (!title || !key || seen.has(key)) continue;
+    seen.add(key);
+    titles.push(title);
+  }
+  return titles;
 }
 
 function compactText(value: string) {
@@ -513,6 +607,11 @@ function formatDate(value: string) {
   return DATE_FORMAT.format(new Date(value));
 }
 
+function formatDateTime(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return DATE_TIME_FORMAT.format(date);
+}
+
 function moonPhaseKey(phase: number): MoonPhaseKey {
   if (phase < 0.03 || phase >= 0.97) return "new";
   if (phase < 0.22) return "waxing-crescent";
@@ -533,6 +632,17 @@ function moonPhaseName(key: MoonPhaseKey) {
   if (key === "waning-gibbous") return "Gibosa menguante";
   if (key === "last-quarter") return "Cuarto menguante";
   return "Menguante fina";
+}
+
+function moonPhaseTags(key: MoonPhaseKey) {
+  if (key === "new") return ["semilla", "escucha"];
+  if (key === "waxing-crescent") return ["intencion", "apertura"];
+  if (key === "first-quarter") return ["decision", "accion"];
+  if (key === "waxing-gibbous") return ["ajuste", "crecimiento"];
+  if (key === "full") return ["claridad", "celebracion"];
+  if (key === "waning-gibbous") return ["gratitud", "integracion"];
+  if (key === "last-quarter") return ["limpieza", "soltar"];
+  return ["reposo", "silencio"];
 }
 
 function calculateMoonPhase(date: Date): MoonPhase {
@@ -561,7 +671,7 @@ function shapeText(shape: StarShape) {
 
 function extractMeditationText(title: string, note: string) {
   const cleanTitle = compactText(title);
-  const cleanNote = compactText(note);
+  const cleanNote = compactText(stripResonanceMarkup(note));
   if (!cleanNote || cleanNote.toLowerCase() === cleanTitle.toLowerCase()) return "";
   if (cleanNote.length <= 144) return cleanNote;
 
@@ -764,40 +874,219 @@ function serializeAtlasState(state: AtlasState) {
   });
 }
 
+function serializePersistedAtlas(state: AtlasState, savedAt = new Date().toISOString()) {
+  return JSON.stringify({
+    savedAt,
+    data: {
+      skies: state.skies,
+      stars: state.stars,
+      constellations: state.constellations,
+      activeSkyId: state.activeSkyId,
+      labelMode: state.labelMode,
+    },
+  });
+}
+
+function readPersistedAtlas(raw: string | null) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const state = normalizeAtlasState(parsed);
+    if (!state) return null;
+    return {
+      state,
+      savedAt:
+        parsed && typeof parsed === "object" && "savedAt" in parsed && typeof (parsed as { savedAt?: unknown }).savedAt === "string"
+          ? ((parsed as { savedAt: string }).savedAt ?? null)
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readHistorySnapshots(raw: string | null) {
+  if (!raw) return [] as HistorySnapshot[];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [] as HistorySnapshot[];
+    return parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const record = entry as Record<string, unknown>;
+        const state = normalizeAtlasState(record.state ?? record.data ?? record);
+        if (!state) return null;
+        return {
+          savedAt: typeof record.savedAt === "string" ? record.savedAt : new Date().toISOString(),
+          state,
+        } satisfies HistorySnapshot;
+      })
+      .filter((entry): entry is HistorySnapshot => Boolean(entry));
+  } catch {
+    return [] as HistorySnapshot[];
+  }
+}
+
+function writeHistorySnapshot(windowRef: Window, nextState: AtlasState, previousSignature: string | null) {
+  const history = readHistorySnapshots(windowRef.localStorage.getItem(STORAGE_HISTORY_KEY));
+  const serialized = serializeAtlasState(nextState);
+  const now = new Date().toISOString();
+  const nextEntry: HistorySnapshot = {
+    savedAt: now,
+    state: nextState,
+  };
+
+  const deduped = history.filter((entry) => serializeAtlasState(entry.state) !== serialized);
+  const shouldPrependPrevious =
+    previousSignature &&
+    previousSignature !== serialized &&
+    !deduped.some((entry) => serializeAtlasState(entry.state) === previousSignature);
+
+  if (shouldPrependPrevious) {
+    const previousState = normalizeAtlasState(JSON.parse(previousSignature));
+    if (previousState) {
+      deduped.unshift({
+        savedAt: now,
+        state: previousState,
+      });
+    }
+  }
+
+  const nextHistory = [nextEntry, ...deduped].slice(0, STORAGE_HISTORY_LIMIT);
+  windowRef.localStorage.setItem(
+    STORAGE_HISTORY_KEY,
+    JSON.stringify(
+      nextHistory.map((entry) => ({
+        savedAt: entry.savedAt,
+        state: entry.state,
+      })),
+    ),
+  );
+}
+
+function persistAtlasToStorage(
+  windowRef: Window,
+  nextState: AtlasState,
+  previousSerialized: string | null,
+  historyMode: "always" | "smart",
+  nextHistorySignature: string,
+  lastHistorySignatureRef: MutableRefObject<string>,
+  lastHistoryAtRef: MutableRefObject<number>,
+) {
+  const serialized = serializeAtlasState(nextState);
+  const persistedSerialized = serializePersistedAtlas(nextState);
+  windowRef.localStorage.setItem(STORAGE_KEY, persistedSerialized);
+  windowRef.localStorage.setItem(STORAGE_RECOVERY_KEY, persistedSerialized);
+  void writeIndexedAtlas(persistedSerialized);
+
+  const now = Date.now();
+  const shouldWriteHistory =
+    historyMode === "always" ||
+    nextHistorySignature !== lastHistorySignatureRef.current ||
+    now - lastHistoryAtRef.current >= STORAGE_HISTORY_MIN_INTERVAL_MS;
+
+  if (shouldWriteHistory) {
+    writeHistorySnapshot(windowRef, nextState, previousSerialized);
+    lastHistorySignatureRef.current = nextHistorySignature;
+    lastHistoryAtRef.current = now;
+  }
+
+  return serialized;
+}
+
+let indexedDbPromise: Promise<IDBDatabase> | null = null;
+
+function openAtlasDatabase() {
+  if (typeof window === "undefined" || !("indexedDB" in window)) {
+    return Promise.reject(new Error("IndexedDB no disponible"));
+  }
+  if (indexedDbPromise) return indexedDbPromise;
+
+  indexedDbPromise = new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(INDEXED_DB_NAME, INDEXED_DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(INDEXED_DB_STORE)) {
+        db.createObjectStore(INDEXED_DB_STORE);
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("No pude abrir la base local"));
+  });
+
+  return indexedDbPromise;
+}
+
+async function readIndexedAtlas() {
+  try {
+    const db = await openAtlasDatabase();
+    const raw = await new Promise<string | null>((resolve, reject) => {
+      const transaction = db.transaction(INDEXED_DB_STORE, "readonly");
+      const store = transaction.objectStore(INDEXED_DB_STORE);
+      const request = store.get(INDEXED_DB_KEY);
+      request.onsuccess = () => resolve(typeof request.result === "string" ? request.result : null);
+      request.onerror = () => reject(request.error ?? new Error("No pude leer la base local"));
+    });
+    return readPersistedAtlas(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function writeIndexedAtlas(serialized: string) {
+  try {
+    const db = await openAtlasDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(INDEXED_DB_STORE, "readwrite");
+      const store = transaction.objectStore(INDEXED_DB_STORE);
+      store.put(serialized, INDEXED_DB_KEY);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("No pude guardar la base local"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Se interrumpio el guardado local"));
+    });
+  } catch {
+    // Fallback silencioso: seguimos teniendo localStorage.
+  }
+}
+
 function readStateBootstrap(): StorageBootstrap {
   if (typeof window === "undefined") {
-    return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false };
+    return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false, savedAt: null, source: "default" };
   }
 
   const primaryRaw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
   const recoveryRaw = window.localStorage.getItem(STORAGE_RECOVERY_KEY);
+  const historyRaw = window.localStorage.getItem(STORAGE_HISTORY_KEY);
 
-  if (primaryRaw) {
-    try {
-      const parsed = normalizeAtlasState(JSON.parse(primaryRaw));
-      if (parsed) {
-        return { state: parsed, notice: "", skipInitialPersist: false };
-      }
-    } catch {
-      // Intentamos recuperar abajo.
-    }
+  const primary = readPersistedAtlas(primaryRaw);
+  if (primary?.state) {
+    return { state: primary.state, notice: "", skipInitialPersist: false, savedAt: primary.savedAt, source: "localStorage" };
   }
 
-  if (recoveryRaw) {
-    try {
-      const parsedRecovery = normalizeAtlasState(JSON.parse(recoveryRaw));
-      if (parsedRecovery) {
-        return {
-          state: parsedRecovery,
-          notice: primaryRaw
-            ? "He recuperado una copia local del atlas porque la memoria principal no se pudo leer."
-            : "He restaurado una copia local guardada automaticamente de tu atlas.",
-          skipInitialPersist: false,
-        };
-      }
-    } catch {
-      // Si tambien falla la copia, seguimos con el atlas base.
-    }
+  const recovery = readPersistedAtlas(recoveryRaw);
+  if (recovery?.state) {
+    return {
+      state: recovery.state,
+      notice: primaryRaw
+        ? "He recuperado una copia local del atlas porque la memoria principal no se pudo leer."
+        : "He restaurado una copia local guardada automaticamente de tu atlas.",
+      skipInitialPersist: false,
+      savedAt: recovery.savedAt,
+      source: "recovery",
+    };
+  }
+
+  const history = readHistorySnapshots(historyRaw);
+  if (history.length > 0) {
+    return {
+      state: history[0].state,
+      notice: "He restaurado una copia local anterior del atlas desde el historial automatico.",
+      skipInitialPersist: false,
+      savedAt: history[0].savedAt,
+      source: "history",
+    };
   }
 
   if (primaryRaw) {
@@ -805,10 +1094,12 @@ function readStateBootstrap(): StorageBootstrap {
       state: DEFAULT_STATE,
       notice: "No pude leer el atlas guardado. He cargado el atlas base y no sobrescribire la memoria en este arranque hasta que hagas cambios.",
       skipInitialPersist: true,
+      savedAt: null,
+      source: "default",
     };
   }
 
-  return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false };
+  return { state: DEFAULT_STATE, notice: "", skipInitialPersist: false, savedAt: null, source: "default" };
 }
 
 export function App() {
@@ -819,7 +1110,7 @@ export function App() {
   const [constellations, setConstellations] = useState(initial.constellations);
   const [activeSkyId, setActiveSkyId] = useState(initial.activeSkyId);
   const [labelMode, setLabelMode] = useState<LabelMode>(initial.labelMode);
-  const [composer, setComposer] = useState<ComposerDraft>({ title: "", note: "" });
+  const [composer, setComposer] = useState<ComposerDraft>({ title: "", note: "", constellationId: "" });
   const [composerOpen, setComposerOpen] = useState(false);
   const [birthEffect, setBirthEffect] = useState<BirthEffect | null>(null);
   const [selectedStarId, setSelectedStarId] = useState<string | null>(null);
@@ -842,14 +1133,23 @@ export function App() {
   const [newSkyName, setNewSkyName] = useState("");
   const [pendingSkySelectionId, setPendingSkySelectionId] = useState<string | null>(null);
   const [skyMenuId, setSkyMenuId] = useState<string | null>(null);
+  const [skyMenuPlacement, setSkyMenuPlacement] = useState<"down" | "up">("down");
   const [draggedSkyId, setDraggedSkyId] = useState<string | null>(null);
   const [dropSkyId, setDropSkyId] = useState<string | null>(null);
   const [pendingDeleteSkyId, setPendingDeleteSkyId] = useState<string | null>(null);
   const [pendingSkyAction, setPendingSkyAction] = useState<PendingSkyAction>(null);
   const [storageNotice, setStorageNotice] = useState(initialBootstrap.notice);
+  const [storageSource, setStorageSource] = useState<StorageBootstrap["source"]>(initialBootstrap.source);
+  const [storageSavedAt, setStorageSavedAt] = useState<string | null>(initialBootstrap.savedAt);
+  const [currentMoment, setCurrentMoment] = useState(() => new Date());
   const [meditationMode, setMeditationMode] = useState(false);
   const [meditationCycle, setMeditationCycle] = useState(0);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
+  const [inspectorHomeView, setInspectorHomeView] = useState<"neutral" | "sky">("neutral");
+  const [showConstellations, setShowConstellations] = useState(true);
+  const [showResonances, setShowResonances] = useState(true);
+  const [viewportControlsOpen, setViewportControlsOpen] = useState(false);
+  const [skyMenuCoords, setSkyMenuCoords] = useState<{ top: number; left: number } | null>(null);
 
   const skyPanelRef = useRef<HTMLDivElement | null>(null);
   const skyRailRef = useRef<HTMLDivElement | null>(null);
@@ -859,9 +1159,61 @@ export function App() {
   const renderedStarsRef = useRef<Star[]>([]);
   const activeConstellationsRef = useRef<Constellation[]>([]);
   const skipInitialPersistRef = useRef(initialBootstrap.skipInitialPersist);
+  const hydrationReadyRef = useRef(typeof window === "undefined");
+  const persistTimerRef = useRef<number | null>(null);
+  const lastSerializedRef = useRef(serializeAtlasState(initial));
+  const bootSerializedRef = useRef(serializeAtlasState(initial));
+  const lastHistorySignatureRef = useRef(`${initial.skies.length}|${initial.stars.length}|${initial.constellations.length}`);
+  const lastHistoryAtRef = useRef(0);
+  const latestStateRef = useRef<AtlasState>(initial);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    let cancelled = false;
+    void readIndexedAtlas().then((indexed) => {
+      if (cancelled) return;
+
+      if (cancelled || !indexed?.state) return;
+
+      const indexedSerialized = serializeAtlasState(indexed.state);
+      const currentSerialized = serializeAtlasState({
+        skies,
+        stars,
+        constellations,
+        activeSkyId,
+        labelMode,
+      });
+
+      const bootstrapSavedAt = initialBootstrap.savedAt ? Date.parse(initialBootstrap.savedAt) : 0;
+      const indexedSavedAt = indexed.savedAt ? Date.parse(indexed.savedAt) : 0;
+
+      if (currentSerialized === bootSerializedRef.current && indexedSerialized !== currentSerialized && indexedSavedAt >= bootstrapSavedAt) {
+        replaceAtlas(indexed.state);
+        setStorageNotice((current) => current || "He cargado tu atlas desde la memoria avanzada local.");
+        setStorageSource("indexeddb");
+        setStorageSavedAt(indexed.savedAt ?? null);
+      }
+
+      if (indexedSerialized === currentSerialized) {
+        lastSerializedRef.current = indexedSerialized;
+        setStorageSource("indexeddb");
+        setStorageSavedAt(indexed.savedAt ?? null);
+      }
+    }).finally(() => {
+      if (!cancelled) {
+        hydrationReadyRef.current = true;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!hydrationReadyRef.current) return;
     if (skipInitialPersistRef.current) {
       skipInitialPersistRef.current = false;
       return;
@@ -874,10 +1226,73 @@ export function App() {
       activeSkyId,
       labelMode: skies.find((sky) => sky.id === activeSkyId)?.showTitles === false ? "hidden" : "titles",
     };
-    const serialized = serializeAtlasState(nextState);
-    window.localStorage.setItem(STORAGE_KEY, serialized);
-    window.localStorage.setItem(STORAGE_RECOVERY_KEY, serialized);
+    const previousSerialized = lastSerializedRef.current;
+    const nextHistorySignature = `${nextState.skies.length}|${nextState.stars.length}|${nextState.constellations.length}`;
+    latestStateRef.current = nextState;
+
+    if (persistTimerRef.current) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      lastSerializedRef.current = persistAtlasToStorage(
+        window,
+        nextState,
+        previousSerialized,
+        "smart",
+        nextHistorySignature,
+        lastHistorySignatureRef,
+        lastHistoryAtRef,
+      );
+      persistTimerRef.current = null;
+    }, STORAGE_PERSIST_DEBOUNCE_MS);
+
+    return () => {
+      if (persistTimerRef.current) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
   }, [activeSkyId, constellations, labelMode, skies, stars]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const flushCurrentAtlas = () => {
+      if (!hydrationReadyRef.current) return;
+      const nextState = latestStateRef.current;
+      const nextHistorySignature = `${nextState.skies.length}|${nextState.stars.length}|${nextState.constellations.length}`;
+      if (persistTimerRef.current) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      lastSerializedRef.current = persistAtlasToStorage(
+        window,
+        nextState,
+        lastSerializedRef.current,
+        "smart",
+        nextHistorySignature,
+        lastHistorySignatureRef,
+        lastHistoryAtRef,
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushCurrentAtlas();
+      }
+    };
+
+    window.addEventListener("pagehide", flushCurrentAtlas);
+    window.addEventListener("beforeunload", flushCurrentAtlas);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", flushCurrentAtlas);
+      window.removeEventListener("beforeunload", flushCurrentAtlas);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     setSelectedStarId(null);
@@ -885,6 +1300,7 @@ export function App() {
     setEditingSky(false);
     setSkyEditor(null);
     setComposerOpen(false);
+    setComposer({ title: "", note: "", constellationId: "" });
     setConstellationMode(false);
     setEditingConstellationId(null);
     setDraftConstellationName("");
@@ -915,6 +1331,15 @@ export function App() {
     if (!birthEffect) return;
     const addTimer = window.setTimeout(() => {
       setStars((current) => [...current, birthEffect.star]);
+      if (birthEffect.constellationId) {
+        setConstellations((current) =>
+          current.map((constellation) =>
+            constellation.id === birthEffect.constellationId && !constellation.starIds.includes(birthEffect.star.id)
+              ? { ...constellation, starIds: [...constellation.starIds, birthEffect.star.id] }
+              : constellation,
+          ),
+        );
+      }
       setSelectedStarId(birthEffect.star.id);
     }, BIRTH_ADD_MS);
     const endTimer = window.setTimeout(() => setBirthEffect(null), BIRTH_END_MS);
@@ -994,6 +1419,24 @@ export function App() {
       ),
     [activeStars, starEditor],
   );
+  const atlasStars = useMemo(
+    () =>
+      stars.map((star) =>
+        starEditor?.id === star.id
+          ? {
+              ...star,
+              title: safeTitle(starEditor.title, starEditor.note),
+              note: sanitizeNote(starEditor.note),
+              showTitle: starEditor.showTitle,
+              color: starEditor.color,
+              customColor: starEditor.color === "custom" ? normalizeCustomColor(starEditor.customColor) ?? "#ff8dc9" : null,
+              size: starEditor.size,
+              shape: starEditor.shape,
+            }
+          : star,
+      ),
+    [starEditor, stars],
+  );
   const activeConstellations = useMemo(() => constellations.filter((item) => item.skyId === activeSkyId), [activeSkyId, constellations]);
   const selectedStar = useMemo(() => renderedStars.find((star) => star.id === selectedStarId) ?? null, [renderedStars, selectedStarId]);
   const persistedSelectedStar = useMemo(() => stars.find((star) => star.id === selectedStarId) ?? null, [selectedStarId, stars]);
@@ -1014,7 +1457,7 @@ export function App() {
     () => renderedStars.find((star) => star.id === pendingConstellationJoin?.starId) ?? null,
     [pendingConstellationJoin, renderedStars],
   );
-  const moonPhase = calculateMoonPhase(new Date());
+  const moonPhase = calculateMoonPhase(currentMoment);
   const moonMaskShift = (moonPhase.waxing ? 1 : -1) * (1 - moonPhase.illumination) * 100;
   const moonPhaseStyle = {
     "--moon-glow-strength": `${0.14 + moonPhase.illumination * 0.2}`,
@@ -1026,10 +1469,160 @@ export function App() {
     () => (selectedStar ? activeConstellations.filter((constellation) => constellation.starIds.includes(selectedStar.id)) : []),
     [activeConstellations, selectedStar],
   );
+  const resonanceSummaries = useMemo(() => {
+    const titleIndex = new Map<string, Star[]>();
+    const skyNameById = new Map(skies.map((sky) => [sky.id, displaySkyName(sky.name)]));
+    const summaries = new Map<string, ResonanceSummary>();
+
+    atlasStars.forEach((star) => {
+      const key = resonanceKey(star.title);
+      if (!key) return;
+      const current = titleIndex.get(key) ?? [];
+      current.push(star);
+      titleIndex.set(key, current);
+    });
+
+    atlasStars.forEach((star) => {
+      summaries.set(star.id, { outgoing: [], incoming: [], unresolved: [] });
+    });
+
+    atlasStars.forEach((source) => {
+      const sourceSummary = summaries.get(source.id);
+      if (!sourceSummary) return;
+      extractResonanceTitles(source.note).forEach((requestedTitle) => {
+        const key = resonanceKey(requestedTitle);
+        if (!key) return;
+        const matches = titleIndex.get(key) ?? [];
+        const sameSkyMatches = matches.filter((target) => target.id !== source.id && target.skyId === source.skyId);
+        const targetMatches = sameSkyMatches.length > 0 ? sameSkyMatches : matches.filter((target) => target.id !== source.id);
+
+        if (targetMatches.length === 0) {
+          sourceSummary.unresolved.push(requestedTitle);
+          return;
+        }
+
+        targetMatches.forEach((target) => {
+          const targetLink: ResonanceLink = {
+            starId: target.id,
+            title: target.title,
+            skyId: target.skyId,
+            skyName: skyNameById.get(target.skyId) ?? "Cielo",
+            sameSky: target.skyId === source.skyId,
+          };
+          const incomingLink: ResonanceLink = {
+            starId: source.id,
+            title: source.title,
+            skyId: source.skyId,
+            skyName: skyNameById.get(source.skyId) ?? "Cielo",
+            sameSky: target.skyId === source.skyId,
+          };
+
+          if (!sourceSummary.outgoing.some((link) => link.starId === target.id)) {
+            sourceSummary.outgoing.push(targetLink);
+          }
+          const targetSummary = summaries.get(target.id);
+          if (targetSummary && !targetSummary.incoming.some((link) => link.starId === source.id)) {
+            targetSummary.incoming.push(incomingLink);
+          }
+        });
+      });
+    });
+
+    return summaries;
+  }, [atlasStars, skies]);
+  const selectedStarResonances = useMemo(
+    () => (selectedStar ? resonanceSummaries.get(selectedStar.id) ?? { outgoing: [], incoming: [], unresolved: [] } : null),
+    [resonanceSummaries, selectedStar],
+  );
   const selectedStarHasDistinctNote = useMemo(
     () => (selectedStar ? hasDistinctNote(selectedStar.note, selectedStar.title) : false),
     [selectedStar],
   );
+  const selectedResonancePaths = useMemo(() => {
+    if (!selectedStar || !selectedStarResonances) return [] as ResonancePath[];
+    const byId = new Map(renderedStars.map((star) => [star.id, star]));
+    const relations = new Map<string, { outgoing: boolean; incoming: boolean }>();
+
+    selectedStarResonances.outgoing
+      .filter((link) => link.sameSky)
+      .forEach((link) => relations.set(link.starId, { ...(relations.get(link.starId) ?? { outgoing: false, incoming: false }), outgoing: true }));
+
+    selectedStarResonances.incoming
+      .filter((link) => link.sameSky)
+      .forEach((link) => relations.set(link.starId, { ...(relations.get(link.starId) ?? { outgoing: false, incoming: false }), incoming: true }));
+
+    return [...relations.entries()]
+      .map(([targetId, relation]) => {
+        const target = byId.get(targetId);
+        if (!target) return null;
+        return {
+          from: { x: selectedStar.x, y: selectedStar.y },
+          to: { x: target.x, y: target.y },
+          path: linePath([
+            { x: selectedStar.x, y: selectedStar.y },
+            { x: target.x, y: target.y },
+          ]),
+          outgoing: relation.outgoing,
+          incoming: relation.incoming,
+          relation: relation.outgoing && relation.incoming ? "mutual" : relation.outgoing ? "outgoing" : "incoming",
+        };
+      })
+      .filter((item): item is ResonancePath => Boolean(item?.path));
+  }, [renderedStars, selectedStar, selectedStarResonances]);
+  const visibleResonancePaths = useMemo(() => {
+    if (!showResonances) return [] as ResonancePath[];
+    if (selectedResonancePaths.length > 0) return selectedResonancePaths;
+
+    const byId = new Map(renderedStars.map((star) => [star.id, star]));
+    const seen = new Set<string>();
+    const items: ResonancePath[] = [];
+
+    renderedStars.forEach((star) => {
+      const summary = resonanceSummaries.get(star.id);
+      if (!summary) return;
+
+      const outgoing = new Set(summary.outgoing.filter((link) => link.sameSky).map((link) => link.starId));
+      const incoming = new Set(summary.incoming.filter((link) => link.sameSky).map((link) => link.starId));
+
+      [...new Set([...outgoing, ...incoming])].forEach((targetId) => {
+        if (targetId === star.id) return;
+        const target = byId.get(targetId);
+        if (!target) return;
+        const pairKey = [star.id, targetId].sort().join("::");
+        if (seen.has(pairKey)) return;
+        seen.add(pairKey);
+
+        const targetSummary = resonanceSummaries.get(targetId);
+        const reverseOutgoing = Boolean(targetSummary?.outgoing.some((link) => link.sameSky && link.starId === star.id));
+        const relation =
+          (outgoing.has(targetId) && reverseOutgoing) || (outgoing.has(targetId) && incoming.has(targetId))
+            ? "mutual"
+            : outgoing.has(targetId)
+              ? "outgoing"
+              : "incoming";
+
+        items.push({
+          from: { x: star.x, y: star.y },
+          to: { x: target.x, y: target.y },
+          path: linePath([
+            { x: star.x, y: star.y },
+            { x: target.x, y: target.y },
+          ]),
+          outgoing: outgoing.has(targetId),
+          incoming: reverseOutgoing || incoming.has(targetId),
+          relation,
+        });
+      });
+    });
+
+    return items;
+  }, [renderedStars, resonanceSummaries, selectedResonancePaths, showResonances]);
+  const selectedResonanceStarIds = useMemo(() => {
+    if (!selectedStarResonances) return new Set<string>();
+    return new Set(
+      [...selectedStarResonances.outgoing, ...selectedStarResonances.incoming].filter((link) => link.sameSky).map((link) => link.starId),
+    );
+  }, [selectedStarResonances]);
   const titleSides = useMemo(() => resolveTitleSides(renderedStars), [renderedStars]);
   const journalEntries = useMemo(() => [...renderedStars].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [renderedStars]);
   const skySummaries = useMemo(
@@ -1066,6 +1659,14 @@ export function App() {
   const skyFull = usedCapacity >= activeSky.capacity;
   const showEmptySkyState = activeStars.length === 0 && (!birthEffect || birthEffect.star.skyId !== activeSkyId);
   const showSkyGuide = activeStars.length > 0 && !constellationMode && !selectedStarId && !birthEffect && !dismissedSkyGuides.includes(activeSkyId);
+  const showPendingConnectionView =
+    surfaceMode === "sky" &&
+    inspectorHomeView === "neutral" &&
+    !selectedStarId &&
+    !composerOpen &&
+    !constellationMode &&
+    !editingSky &&
+    !birthEffect;
   const canCreateStar =
     !birthEffect &&
     !skyFull &&
@@ -1119,7 +1720,9 @@ export function App() {
             : false;
   const toolbarContextLabel = editingSelectedStar
     ? `Editar · ${safeTitle(starEditor?.title ?? selectedStar?.title ?? "", starEditor?.note ?? selectedStar?.note ?? "")}`
-    : surfaceMode === "journal"
+    : surfaceMode === "guide"
+      ? "Guía y about"
+      : surfaceMode === "journal"
       ? selectedStar
         ? selectedStar.title
         : "Diario"
@@ -1130,7 +1733,7 @@ export function App() {
           : constellationMode
             ? editingConstellation
               ? editingConstellation.name
-              : "Constelar"
+              : "Nueva constelacion"
             : selectedStar
               ? selectedStar.title
               : "";
@@ -1152,6 +1755,22 @@ export function App() {
           ? "☾ Salir de contemplacion"
           : "☾ Contemplacion en pausa"
         : "☾ Contemplar";
+  const inspectorEditingMode = composerOpen || constellationMode || editingSky || editingSelectedStar;
+  const storageSourceText =
+    storageSource === "indexeddb"
+      ? "IndexedDB"
+      : storageSource === "localStorage"
+        ? "Local del navegador"
+        : storageSource === "recovery"
+          ? "Copia de recuperacion"
+          : storageSource === "history"
+            ? "Historial local"
+            : "Atlas base";
+  const toolbarDateText = TOOLBAR_DAY_FORMAT.format(currentMoment);
+  const toolbarTimeText = TOOLBAR_TIME_FORMAT.format(currentMoment);
+  const toolbarMoonTags = moonPhaseTags(moonPhase.key);
+  const storageOriginText = typeof window !== "undefined" ? window.location.origin : "";
+  const selectedResonanceActive = showResonances && Boolean(selectedStarId) && selectedResonanceStarIds.size > 0;
   const meditationLines = useMemo(() => {
     if (!meditationRunning || meditationPool.length === 0) return [] as MeditationLine[];
 
@@ -1223,11 +1842,19 @@ export function App() {
   }, [meditationRunning]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentMoment(new Date());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
       if (target.closest(".sky-tab-menu") || target.closest(".sky-tab-menu-button")) return;
       setSkyMenuId(null);
+      setSkyMenuCoords(null);
     };
 
     window.addEventListener("pointerdown", handlePointerDown);
@@ -1249,6 +1876,7 @@ export function App() {
     setDraftConstellationStarIds([]);
     setPendingConstellationJoin(null);
     setOverlayPanel(null);
+    setInspectorHomeView("neutral");
   }
 
   function updateStar(id: string, updater: (star: Star) => Star) {
@@ -1270,7 +1898,7 @@ export function App() {
     setEditingSky(false);
     setSkyEditor(null);
     setComposerOpen(false);
-    setComposer({ title: "", note: "" });
+    setComposer({ title: "", note: "", constellationId: "" });
     setConstellationMode(false);
     setEditingConstellationId(null);
     setDraftConstellationName("");
@@ -1287,6 +1915,10 @@ export function App() {
 
     const title = safeTitle(composer.title, composer.note);
     const note = sanitizeNote(composer.note);
+    const targetConstellationId =
+      composer.constellationId && activeConstellations.some((constellation) => constellation.id === composer.constellationId)
+        ? composer.constellationId
+        : null;
     const visualIndex = activeStars.length;
     const visual = {
       color: COLORS[visualIndex % COLORS.length],
@@ -1314,13 +1946,23 @@ export function App() {
         star: nextStar,
         startX: 50,
         startY: 90,
+        constellationId: targetConstellationId,
       });
     } else {
       setStars((current) => [...current, nextStar]);
+      if (targetConstellationId) {
+        setConstellations((current) =>
+          current.map((constellation) =>
+            constellation.id === targetConstellationId && !constellation.starIds.includes(nextStar.id)
+              ? { ...constellation, starIds: [...constellation.starIds, nextStar.id] }
+              : constellation,
+          ),
+        );
+      }
       if (shouldSelect) setSelectedStarId(nextStar.id);
     }
 
-    setComposer({ title: "", note: "" });
+    setComposer({ title: "", note: "", constellationId: "" });
     setComposerOpen(false);
     return true;
   }
@@ -1330,11 +1972,13 @@ export function App() {
     setOverlayPanel(null);
 
     if (action.type === "show-sky-root") {
+      setInspectorHomeView("sky");
       clearTransientPanels("sky");
       return;
     }
 
     if (action.skyId === activeSkyId) {
+      setInspectorHomeView("sky");
       if (action.afterSwitch?.mode === "composer") {
         focusComposer();
         return;
@@ -1343,12 +1987,17 @@ export function App() {
         startConstellationMode();
         return;
       }
+      if (action.selectStarId) {
+        setSelectedStarId(action.selectStarId);
+      }
       clearTransientPanels(action.surfaceMode, { preserveSelection: action.surfaceMode === "journal" });
       return;
     }
 
     setSurfaceMode(action.surfaceMode);
+    setInspectorHomeView("sky");
     setPendingSkyAction(action.afterSwitch ?? null);
+    setPendingSkySelectionId(action.selectStarId ?? null);
     setActiveSkyId(action.skyId);
     setSkyMenuId(null);
   }
@@ -1363,9 +2012,18 @@ export function App() {
     executePendingNavigation(action);
   }
 
+  function jumpToResonance(link: ResonanceLink) {
+    requestNavigation({
+      type: "activate-sky",
+      skyId: link.skyId,
+      surfaceMode,
+      selectStarId: link.starId,
+    });
+  }
+
   function discardCurrentChanges() {
     if (dirtyContext === "composer") {
-      setComposer({ title: "", note: "" });
+      setComposer({ title: "", note: "", constellationId: "" });
       setComposerOpen(false);
       return;
     }
@@ -1414,6 +2072,7 @@ export function App() {
 
   function requestDeleteSky(skyId: string) {
     setSkyMenuId(null);
+    setSkyMenuCoords(null);
     setPendingDeleteSkyId(skyId);
     setOverlayPanel("delete-sky");
   }
@@ -1437,6 +2096,7 @@ export function App() {
 
     if (activeSkyId === targetSkyId) {
       setActiveSkyId(nextSky.id);
+      setInspectorHomeView("neutral");
       setSelectedStarId(null);
       setStarEditor(null);
       setConstellationMode(false);
@@ -1529,6 +2189,7 @@ export function App() {
     };
     setSkies((current) => [...current, nextSky]);
     setActiveSkyId(nextSky.id);
+    setInspectorHomeView("sky");
     setDismissedSkyGuides((current) => current.filter((skyId) => skyId !== nextSky.id));
     closeOverlay();
   }
@@ -1577,6 +2238,7 @@ export function App() {
     if (constellationMode) return;
     setSelectedStarId(null);
     setStarEditor(null);
+    setInspectorHomeView("neutral");
   }
 
   function focusComposer() {
@@ -1591,6 +2253,7 @@ export function App() {
     setEditingConstellationId(null);
     setDraftConstellationName("");
     setDraftConstellationStarIds([]);
+    setInspectorHomeView("neutral");
     window.setTimeout(() => composerTitleRef.current?.focus(), 0);
   }
 
@@ -1610,6 +2273,7 @@ export function App() {
 
   function beginEditSky() {
     setSurfaceMode("sky");
+    setInspectorHomeView("sky");
     setSelectedStarId(null);
     setStarEditor(null);
     setComposerOpen(false);
@@ -1677,6 +2341,99 @@ export function App() {
 
   const editorPreviewTitle = starEditor ? safeTitle(starEditor.title, starEditor.note) : "";
   const editorPreviewNote = starEditor ? sanitizeNote(starEditor.note) : "";
+
+  function renderResonantText(value: string) {
+    const tokens = Array.from(value.matchAll(/\{([^{}]+)\}/g));
+    if (tokens.length === 0) return value;
+
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    tokens.forEach((match, index) => {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      const title = sanitizeTitle(match[1] ?? "");
+
+      if (start > cursor) {
+        parts.push(<span key={`text-${index}-${cursor}`}>{value.slice(cursor, start)}</span>);
+      }
+
+      parts.push(
+        <span key={`resonance-${index}-${start}`} className="resonance-inline">
+          {title || match[1]}
+        </span>,
+      );
+      cursor = end;
+    });
+
+    if (cursor < value.length) {
+      parts.push(<span key={`tail-${cursor}`}>{value.slice(cursor)}</span>);
+    }
+
+    return parts;
+  }
+
+  function renderResonanceSection(summary: ResonanceSummary | null) {
+    if (!summary) return null;
+    const hasItems = summary.outgoing.length > 0 || summary.incoming.length > 0 || summary.unresolved.length > 0;
+    if (!hasItems) return null;
+
+    return (
+      <section className="resonance-section">
+        <p className="panel-label">Resonancias</p>
+
+        {summary.outgoing.length > 0 ? (
+          <div className="resonance-group-list">
+            <strong className="resonance-group-title">Apunta a</strong>
+            <div className="resonance-chip-list">
+              {summary.outgoing.map((link) => (
+                <button
+                  key={`out-${link.starId}`}
+                  className={`resonance-chip resonance-chip-button${link.sameSky ? "" : " resonance-chip-other"}`}
+                  onClick={() => jumpToResonance(link)}
+                  type="button"
+                >
+                  {link.title}
+                  {!link.sameSky ? <small>{link.skyName}</small> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {summary.incoming.length > 0 ? (
+          <div className="resonance-group-list">
+            <strong className="resonance-group-title">Aparece en</strong>
+            <div className="resonance-chip-list">
+              {summary.incoming.map((link) => (
+                <button
+                  key={`in-${link.starId}`}
+                  className={`resonance-chip resonance-chip-button resonance-chip-incoming${link.sameSky ? "" : " resonance-chip-other"}`}
+                  onClick={() => jumpToResonance(link)}
+                  type="button"
+                >
+                  {link.title}
+                  {!link.sameSky ? <small>{link.skyName}</small> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {summary.unresolved.length > 0 ? (
+          <div className="resonance-group-list">
+            <strong className="resonance-group-title">Sin resolver</strong>
+            <div className="resonance-chip-list">
+              {summary.unresolved.map((item) => (
+                <span key={`missing-${item}`} className="resonance-chip resonance-chip-missing">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   function renderStarEditorForm(prefix: string) {
     if (!starEditor) return null;
@@ -1906,10 +2663,12 @@ export function App() {
   function toggleSkyTitles(skyId: string) {
     updateSkyById(skyId, (current) => ({ ...current, showTitles: !current.showTitles }));
     setSkyMenuId(null);
+    setSkyMenuCoords(null);
   }
 
   function openSkyMenuAction(skyId: string, mode: "composer" | "constellation") {
     setSkyMenuId(null);
+    setSkyMenuCoords(null);
     requestNavigation({ type: "activate-sky", skyId, afterSwitch: { skyId, mode }, surfaceMode: "sky" });
   }
 
@@ -1917,6 +2676,7 @@ export function App() {
     setDraggedSkyId(skyId);
     setDropSkyId(skyId);
     setSkyMenuId(null);
+    setSkyMenuCoords(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", skyId);
   }
@@ -2045,25 +2805,77 @@ export function App() {
         </div>
 
         <div className="toolbar-trail" aria-label="Ubicacion actual">
-          <button
-            className={`toolbar-trail-link${toolbarContextLabel ? "" : " toolbar-trail-link-static"}`}
-            disabled={!toolbarContextLabel}
-            onClick={() => requestNavigation({ type: "show-sky-root" })}
-            type="button"
-          >
-            {displaySkyName(activeSky.name)}
-          </button>
-          {toolbarContextLabel ? (
-            <>
-              <span className="toolbar-trail-separator" aria-hidden="true">
-                {"\u203A"}
-              </span>
-              <span className="toolbar-trail-current">{toolbarContextLabel}</span>
-            </>
-          ) : null}
+          <div className="toolbar-context">
+            <div className="toolbar-trail-main">
+              <button
+                className={`toolbar-trail-link${toolbarContextLabel ? "" : " toolbar-trail-link-static"}`}
+                disabled={!toolbarContextLabel}
+                onClick={() => requestNavigation({ type: "show-sky-root" })}
+                type="button"
+              >
+                {displaySkyName(activeSky.name)}
+              </button>
+              {toolbarContextLabel ? (
+                <>
+                  <span className="toolbar-trail-separator" aria-hidden="true">
+                    {"\u203A"}
+                  </span>
+                  <span className="toolbar-trail-current">{toolbarContextLabel}</span>
+                </>
+              ) : null}
+            </div>
+            <div className="toolbar-meta" aria-label="Fecha, hora y luna actual">
+              <span className="toolbar-meta-item">{toolbarDateText}</span>
+              <span className="toolbar-meta-item">{toolbarTimeText}</span>
+              <span className="toolbar-meta-phase">{moonPhase.name}</span>
+              <div className="toolbar-meta-tags" aria-label="Palabras asociadas a la fase lunar">
+                {toolbarMoonTags.map((tag) => (
+                  <span key={tag} className="toolbar-meta-tag">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="toolbar-actions">
+          {surfaceMode === "sky" ? (
+            <div className={`toolbar-viewport-wrap${viewportControlsOpen ? " toolbar-viewport-wrap-open" : ""}`}>
+              <button
+                className={`toolbar-button toolbar-button-ghost toolbar-viewport-trigger${viewportControlsOpen ? " toolbar-button-active" : ""}`}
+                onClick={() => setViewportControlsOpen((current) => !current)}
+                type="button"
+              >
+                {viewportControlsOpen ? "✕ Visor" : "☰ Visor"}
+              </button>
+              {viewportControlsOpen ? (
+                <div className="toolbar-viewport-panel">
+                  <button
+                    className={`toolbar-button toolbar-button-ghost toolbar-viewport-toggle${activeSky.showTitles ? " toolbar-button-active" : ""}`}
+                    onClick={() => toggleSkyTitles(activeSkyId)}
+                    type="button"
+                  >
+                    {activeSky.showTitles ? "🏷 Titulos on" : "🏷 Titulos off"}
+                  </button>
+                  <button
+                    className={`toolbar-button toolbar-button-ghost toolbar-viewport-toggle${showConstellations ? " toolbar-button-active" : ""}`}
+                    onClick={() => setShowConstellations((current) => !current)}
+                    type="button"
+                  >
+                    {showConstellations ? "☄ Constelaciones on" : "☄ Constelaciones off"}
+                  </button>
+                  <button
+                    className={`toolbar-button toolbar-button-ghost toolbar-viewport-toggle${showResonances ? " toolbar-button-active" : ""}`}
+                    onClick={() => setShowResonances((current) => !current)}
+                    type="button"
+                  >
+                    {showResonances ? "↔ Resonancias on" : "↔ Resonancias off"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <button
             className={`toolbar-button toolbar-button-violet${surfaceMode === "journal" ? " toolbar-button-active" : ""}`}
             onClick={() => (surfaceMode === "journal" ? setSurfaceMode("sky") : openJournal())}
@@ -2071,8 +2883,12 @@ export function App() {
           >
             {surfaceMode === "journal" ? "\u{1F30C} Cielo" : "\u{1F4DD} Diario"}
           </button>
-          <button className="toolbar-button toolbar-button-help" onClick={() => setOverlayPanel("help")} type="button">
-            {"\u2754 Ayuda"}
+          <button
+            className={`toolbar-button toolbar-button-help${surfaceMode === "guide" ? " toolbar-button-active" : ""}`}
+            onClick={() => setSurfaceMode((current) => (current === "guide" ? "sky" : "guide"))}
+            type="button"
+          >
+            {surfaceMode === "guide" ? "✕ Guía" : "\u2754 Ayuda"}
           </button>
           <button className="toolbar-button toolbar-button-gold" onClick={() => setOverlayPanel("backup")} type="button">
             {"\u2B07 Backup"}
@@ -2091,12 +2907,6 @@ export function App() {
 
       <div className="atlas-layout">
         <aside className="sky-rail">
-          <div className="sky-rail-head">
-            <div>
-              <span className="sky-rail-summary">{skies.length} cielos en tu archivo</span>
-            </div>
-          </div>
-
           <div className="sky-rail-body">
             <div className="sky-rail-list" ref={skyRailRef}>
               {skies.map((sky) => {
@@ -2132,28 +2942,29 @@ export function App() {
                       className={`sky-tab-menu-button${skyMenuId === sky.id ? " sky-tab-menu-button-active" : ""}`}
                       onClick={(event) => {
                         event.stopPropagation();
-                        setSkyMenuId((current) => (current === sky.id ? null : sky.id));
+                        if (skyMenuId === sky.id) {
+                          setSkyMenuId(null);
+                          setSkyMenuCoords(null);
+                          return;
+                        }
+                        const railBounds = skyRailRef.current?.getBoundingClientRect();
+                        const triggerBounds = event.currentTarget.getBoundingClientRect();
+                        const estimatedMenuHeight = 170;
+                        const estimatedMenuWidth = 158;
+                        const spaceBelow = railBounds ? railBounds.bottom - triggerBounds.bottom : estimatedMenuHeight;
+                        const spaceAbove = railBounds ? triggerBounds.top - railBounds.top : 0;
+                        const placement = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow ? "up" : "down";
+                        setSkyMenuPlacement(placement);
+                        setSkyMenuCoords({
+                          top: placement === "up" ? triggerBounds.top - estimatedMenuHeight + 6 : triggerBounds.bottom - 6,
+                          left: Math.max(16, triggerBounds.right - estimatedMenuWidth),
+                        });
+                        setSkyMenuId(sky.id);
                       }}
                       type="button"
                     >
                       ⋯
                     </button>
-                    {skyMenuId === sky.id ? (
-                      <div className="sky-tab-menu">
-                        <button className="sky-tab-menu-item" onClick={() => openSkyMenuAction(sky.id, "composer")} type="button">
-                          ✦ Nueva estrella
-                        </button>
-                        <button className="sky-tab-menu-item" onClick={() => openSkyMenuAction(sky.id, "constellation")} type="button">
-                          ☄ Constelar
-                        </button>
-                        <button className="sky-tab-menu-item" onClick={() => toggleSkyTitles(sky.id)} type="button">
-                          {sky.showTitles ? "🏷 Titulos: si" : "🏷 Titulos: no"}
-                        </button>
-                        <button className="sky-tab-menu-item" disabled={skies.length <= 1} onClick={() => requestDeleteSky(sky.id)} type="button">
-                          {"\u{1F5D1} Eliminar cielo"}
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 );
               })}
@@ -2210,7 +3021,7 @@ export function App() {
                       <div className="journal-entry-copy">
                         <strong>{star.title}</strong>
                         <span className="journal-entry-date">{formatDate(star.createdAt)}</span>
-                        <span className="journal-entry-preview">{excerpt(star.note || star.title)}</span>
+                        <span className="journal-entry-preview">{excerpt(stripResonanceMarkup(star.note) || star.title)}</span>
                       </div>
                     </button>
                   ))
@@ -2255,8 +3066,10 @@ export function App() {
                       </div>
 
                       <div className="journal-note-sheet">
-                        <p>{selectedStar.note || "Esta entrada aun no tiene una nota larga asociada."}</p>
+                        <p>{selectedStar.note ? renderResonantText(selectedStar.note) : "Esta entrada aun no tiene una nota larga asociada."}</p>
                       </div>
+
+                      {renderResonanceSection(selectedStarResonances)}
 
                       <div className="button-row">
                         <button className="toolbar-button toolbar-button-ghost" onClick={() => setSurfaceMode("sky")} type="button">
@@ -2285,26 +3098,176 @@ export function App() {
             </section>
           </div>
         </section>
+      ) : surfaceMode === "guide" ? (
+        <section className="guide-shell">
+          <header className="guide-header">
+            <div className="guide-header-copy">
+              <p className="panel-label">Guía de uso · About</p>
+              <h1>Setestrelo</h1>
+              <p className="guide-intro">
+                Un observatorio personal para visualizar ideas, tareas, deseos y transiciones mentales con más calma.
+              </p>
+            </div>
+            <div className="guide-header-actions">
+              <button className="toolbar-button toolbar-button-ghost" onClick={() => setSurfaceMode("sky")} type="button">
+                {"\u{1F30C} Volver al cielo"}
+              </button>
+            </div>
+          </header>
+
+          <article className="guide-flow">
+            <section className="guide-section">
+              <p className="panel-label">Qué es</p>
+              <h2>Un atlas visual para pensar antes de actuar</h2>
+              <p>
+                Setestrelo puede usarse como diario poético, mapa emocional o archivo de deseos. Pero también puede funcionar como una forma suave de
+                hacer visible lo que todavía cuesta iniciar.
+              </p>
+              <p>
+                Una de las maneras en las que se está probando consiste en crear cielos para tareas, ideas o bloques de acción que producen bloqueo,
+                dividirlos en estrellas más pequeñas y visualizarlos antes de actuar.
+              </p>
+            </section>
+
+            <section className="guide-section">
+              <p className="panel-label">Cómo empezar</p>
+              <ol className="guide-steps">
+                <li>
+                  <strong>Crea un cielo.</strong> Cada cielo puede reunir un tema, una tarea grande, una intención o un contexto de foco.
+                </li>
+                <li>
+                  <strong>Añade estrellas.</strong> Cada estrella combina un título corto para el visor y una nota más amplia para el diario.
+                </li>
+                <li>
+                  <strong>Teje constelaciones.</strong> Usa <em>Nueva constelación</em> y selecciona estrellas en el orden que quieras.
+                </li>
+                <li>
+                  <strong>Abre el diario.</strong> Ahí puedes leer, editar y trabajar tus notas con más detalle.
+                </li>
+              </ol>
+            </section>
+
+            <section className="guide-section">
+              <p className="panel-label">Resonancias</p>
+              <h2>Relaciones semánticas entre notas</h2>
+              <p>
+                En el diario puedes nombrar otra nota entre llaves, por ejemplo <em>{"{Nombre de otra nota}"}</em>. Cuando esa referencia encuentra una
+                estrella existente, Setestrelo crea una resonancia.
+              </p>
+              <p>
+                Si activas las resonancias en el panel del planetario, verás un flujo de micropartículas entre las estrellas relacionadas.
+              </p>
+            </section>
+
+            <section className="guide-section">
+              <p className="panel-label">Contemplar</p>
+              <h2>Ver aparecer las palabras con calma</h2>
+              <p>
+                El modo contemplativo muestra a intervalos pausados el contenido de tus estrellas en el centro del cielo. No busca meter prisa ni
+                productividad, sino ayudar a sostener una imagen mental de lo que quieres acercar.
+              </p>
+            </section>
+
+            <section className="guide-section">
+              <p className="panel-label">Persistencia y backups</p>
+              <h2>Dónde viven tus datos</h2>
+              <p>
+                Setestrelo guarda el atlas en este navegador usando varias capas locales de persistencia: <strong>IndexedDB</strong>,
+                <strong> localStorage</strong>, copia de recuperación e historial reciente.
+              </p>
+              <p>
+                Si cambias de navegador, de perfil o de origen, no verás necesariamente el mismo atlas. Por eso sigue siendo recomendable exportar
+                copias <code>.json</code>.
+              </p>
+            </section>
+
+            <section className="guide-section">
+              <p className="panel-label">About</p>
+              <h2>Una herramienta para imaginar, ordenar y acercar lo que cuesta iniciar</h2>
+              <p>
+                La intención del proyecto no es sustituir apoyo clínico ni prometer efectos terapéuticos, sino ofrecer una superficie visual y escrita
+                donde externalizar pasos, descargar memoria de trabajo y preparar cambios de foco con más suavidad.
+              </p>
+              <p>
+                Esta línea está desarrollada con más detalle en el documento <strong>ABOUT</strong> del proyecto y se apoya en bibliografía sobre
+                función ejecutiva, inicio de tareas, externalización cognitiva e imaginería prospectiva.
+              </p>
+              <p className="guide-signoff">Idea, diseño y universo visual de Sira Perriki.</p>
+            </section>
+          </article>
+        </section>
       ) : (
       <section className="workspace">
         <div className="sky-frame">
-          <div key={activeSkyId} className="sky-panel" data-theme={liveSkyTheme} onPointerDown={handleSkyBackgroundPointerDown} ref={skyPanelRef}>
-            <div className="sky-gradient" />
-            <div className="sky-photo sky-photo-main" />
-            <div className="sky-photo sky-photo-texture" />
-            <div className="sky-veil" />
-            <div className={`sky-orbital-body sky-orbital-body-moon moon-phase-${moonPhase.key}`} style={moonPhaseStyle} title={moonPhase.name} />
-            <div className="sky-orbital-body sky-orbital-body-saturn" />
-            <div className="sky-orbital-body sky-orbital-body-earth" />
-            <div className="sky-orbital-body sky-orbital-body-neptune" />
-            <div className="sky-orbital-body sky-orbital-body-jupiter" />
-            <div className="sky-orbital-body sky-orbital-body-venus" />
-            <div className="sky-orbital-body sky-orbital-body-mercury" />
-            <div className="sky-nebula sky-nebula-a" />
-            <div className="sky-nebula sky-nebula-b" />
-            <div className="sky-nebula sky-nebula-c" />
+          <div
+            key={`${activeSkyId}-${showPendingConnectionView ? "neutral" : "active"}`}
+            className={`sky-panel${showPendingConnectionView ? " sky-panel-neutral" : ""}`}
+            data-theme={showPendingConnectionView ? undefined : liveSkyTheme}
+            onPointerDown={handleSkyBackgroundPointerDown}
+            ref={skyPanelRef}
+          >
+            {showPendingConnectionView ? (
+              <div className="sky-connection-state">
+                <div className="sky-connection-grid" />
+                <div className="sky-connection-scan" />
+                {NEUTRAL_DUST.map((particle) => (
+                  <motion.span
+                    key={particle.id}
+                    className="sky-connection-dust"
+                    style={{ left: `${particle.x}%`, top: `${particle.y}%`, "--dust-scale": particle.scale } as CSSProperties}
+                    animate={{
+                      opacity: [0.14, 0.5, 0.2],
+                      x: [0, particle.driftX, 0],
+                      y: [0, particle.driftY, 0],
+                      scale: [particle.scale, particle.scale * 1.18, particle.scale],
+                    }}
+                    transition={{ duration: 10 + (particle.id.length % 5) * 2.6, delay: particle.delay, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                ))}
+                {NEUTRAL_GLOW_MOTES.map((mote) => (
+                  <motion.span
+                    key={mote.id}
+                    className="sky-connection-glow"
+                    style={{ left: `${mote.x}%`, top: `${mote.y}%` }}
+                    animate={{ opacity: [0.04, 0.16, 0.05], x: [0, mote.span * 0.22, 0], y: [0, -mote.span * 0.18, 0], scale: [0.9, 1.06, 0.92] }}
+                    transition={{ duration: 18 + mote.span, delay: mote.delay, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                ))}
+                <div className="sky-connection-rings">
+                  <span className="sky-connection-ring sky-connection-ring-a" />
+                  <span className="sky-connection-ring sky-connection-ring-b" />
+                  <span className="sky-connection-ring sky-connection-ring-c" />
+                </div>
+                <div className="sky-connection-nodes">
+                  <span className="sky-connection-node sky-connection-node-a" />
+                  <span className="sky-connection-node sky-connection-node-b" />
+                  <span className="sky-connection-node sky-connection-node-c" />
+                  <span className="sky-connection-node sky-connection-node-d" />
+                </div>
+                <div className="sky-connection-copy">
+                  <p className="panel-label">Visor en espera</p>
+                  <strong>Pendiente de conexión con un cielo.</strong>
+                  <span>Primero elige un cielo en la columna izquierda. Después podrás abrir sus estrellas desde el visor o desde el diario.</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="sky-gradient" />
+                <div className="sky-photo sky-photo-main" />
+                <div className="sky-photo sky-photo-texture" />
+                <div className="sky-veil" />
+                <div className={`sky-orbital-body sky-orbital-body-moon moon-phase-${moonPhase.key}`} style={moonPhaseStyle} title={moonPhase.name} />
+                <div className="sky-orbital-body sky-orbital-body-saturn" />
+                <div className="sky-orbital-body sky-orbital-body-earth" />
+                <div className="sky-orbital-body sky-orbital-body-neptune" />
+                <div className="sky-orbital-body sky-orbital-body-jupiter" />
+                <div className="sky-orbital-body sky-orbital-body-venus" />
+                <div className="sky-orbital-body sky-orbital-body-mercury" />
+                <div className="sky-nebula sky-nebula-a" />
+                <div className="sky-nebula sky-nebula-b" />
+                <div className="sky-nebula sky-nebula-c" />
 
-            {showSkyGuide ? (
+                {showSkyGuide ? (
               <div className="sky-focus-guide">
                 <button
                   aria-label="Cerrar ayuda del cielo"
@@ -2319,21 +3282,21 @@ export function App() {
                 </button>
                 <strong>Tu cielo ya respira</strong>
                 <span>Haz clic en una estrella para leerla.</span>
-                <span>Usa Constelar para dibujar relaciones entre varias luces.</span>
+                <span>Usa Nueva constelacion para dibujar relaciones entre varias luces.</span>
               </div>
-            ) : null}
+                ) : null}
 
-            {constellationMode ? <div className="sky-mode-banner">Selecciona estrellas en orden y guarda la constelacion.</div> : null}
+                {constellationMode ? <div className="sky-mode-banner">Selecciona estrellas en orden y guarda la nueva constelacion.</div> : null}
 
-            {showEmptySkyState ? (
+                {showEmptySkyState ? (
               <div className="empty-sky-state">
                 <p className="panel-label">Cielo vacio</p>
                 <strong>Este cielo esta esperando su primera nota.</strong>
                 <span>Crea una estrella con un titulo breve y una nota asociada.</span>
               </div>
-            ) : null}
+                ) : null}
 
-            {FLOATING_MOTES.map((mote) => (
+                {FLOATING_MOTES.map((mote) => (
               <motion.span
                 key={mote.id}
                 className="floating-mote"
@@ -2341,9 +3304,9 @@ export function App() {
                 animate={{ opacity: [0.06, 0.24, 0.08], y: [0, -mote.span, 0], x: [0, 4, 0], scale: [0.8, 1.1, 0.9] }}
                 transition={{ duration: 10 + mote.span, delay: mote.delay, repeat: Infinity, ease: "easeInOut" }}
               />
-            ))}
+                ))}
 
-            {BG_STARS.map((star) => (
+                {BG_STARS.map((star) => (
               <motion.span
                 key={star.id}
                 className="bg-star"
@@ -2351,13 +3314,13 @@ export function App() {
                 animate={{ opacity: [0.18, 0.72, 0.18], scale: [star.scale, star.scale + 0.22, star.scale] }}
                 transition={{ duration: 6.2, delay: star.delay, repeat: Infinity, ease: "easeInOut" }}
               />
-            ))}
+                ))}
 
-            <span className="shooting-star shooting-star-a" />
-            <span className="shooting-star shooting-star-b" />
-            <span className="shooting-star shooting-star-c" />
+                <span className="shooting-star shooting-star-a" />
+                <span className="shooting-star shooting-star-b" />
+                <span className="shooting-star shooting-star-c" />
 
-            <AnimatePresence mode="sync">
+                <AnimatePresence mode="sync">
               {meditationRunning ? (
                 <div className="meditation-layer" key={`meditation-${activeSkyId}`}>
                   {meditationLines.map((line) => (
@@ -2384,9 +3347,9 @@ export function App() {
                   ))}
                 </div>
               ) : null}
-            </AnimatePresence>
+                </AnimatePresence>
 
-            <svg className="constellation-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <svg className="constellation-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
                 <filter id="constellation-glow">
                   <feGaussianBlur stdDeviation="0.32" result="coloredBlur" />
@@ -2397,25 +3360,71 @@ export function App() {
                 </filter>
               </defs>
 
-              {constellationPaths.map((path, index) => (
-                <g key={`constellation-${index}`} className="constellation-group">
-                  <path className="constellation-glow" d={path} />
-                  <path className="constellation-core" d={path} />
-                </g>
-              ))}
+              {showConstellations
+                ? constellationPaths.map((path, index) => (
+                    <g key={`constellation-${index}`} className="constellation-group">
+                      <path className="constellation-glow" d={path} />
+                      <path className="constellation-core" d={path} />
+                    </g>
+                  ))
+                : null}
 
-              {draftPath ? (
+              {showConstellations && draftPath ? (
                 <g className="constellation-group constellation-preview">
                   <path className="constellation-glow" d={draftPath} />
                   <path className="constellation-core" d={draftPath} />
                 </g>
               ) : null}
-            </svg>
 
-            {renderedStars.map((star, index) => (
+                </svg>
+
+                {showResonances && visibleResonancePaths.length > 0 ? (
+              <div className={`resonance-layer${selectedStarId ? " resonance-layer-focused" : ""}`}>
+                {visibleResonancePaths.map((item, index) => {
+                  const particleCount = selectedStarId ? 11 : 8;
+                  const streams: Array<{ key: string; className: string; from: { x: number; y: number }; to: { x: number; y: number } }> = [];
+                  if (item.outgoing) {
+                    streams.push({ key: "outgoing", className: "resonance-stream-outgoing", from: item.from, to: item.to });
+                  }
+                  if (item.incoming) {
+                    streams.push({ key: "incoming", className: item.outgoing ? "resonance-stream-return" : "resonance-stream-incoming", from: item.to, to: item.from });
+                  }
+                  return streams.map((stream, streamIndex) => (
+                    <div
+                      key={`resonance-stream-${index}-${stream.key}`}
+                      className={`resonance-stream ${stream.className}${item.outgoing && item.incoming ? " resonance-stream-mutual" : ""}`}
+                      style={
+                        {
+                          "--from-x": `${stream.from.x}%`,
+                          "--from-y": `${stream.from.y}%`,
+                          "--to-x": `${stream.to.x}%`,
+                          "--to-y": `${stream.to.y}%`,
+                        } as CSSProperties
+                      }
+                    >
+                      {Array.from({ length: particleCount }, (_, particleIndex) => (
+                        <span
+                          key={`resonance-drift-${index}-${stream.key}-${particleIndex}`}
+                          className="resonance-drift"
+                          style={
+                            {
+                              "--drift-delay": `${particleIndex * (selectedStarId ? 0.42 : 0.56) + streamIndex * 0.22}s`,
+                              "--drift-duration": `${selectedStarId ? 8.8 + particleIndex * 0.16 : 10.8 + particleIndex * 0.2}s`,
+                              "--drift-size": `${particleIndex % 5 === 0 ? 3.4 : particleIndex % 2 === 0 ? 2.3 : 1.7}px`,
+                            } as CSSProperties
+                          }
+                        />
+                      ))}
+                    </div>
+                  ));
+                })}
+              </div>
+                ) : null}
+
+                {renderedStars.map((star, index) => (
               <motion.button
                 key={star.id}
-                className={`atlas-star atlas-star-${star.size} atlas-star-${star.color} atlas-star-${star.shape}${selectedStarId === star.id ? " atlas-star-selected" : ""}${draftConstellationStarIds.includes(star.id) ? " atlas-star-linked" : ""}${draggingStarId === star.id ? " atlas-star-dragging" : ""}`}
+                className={`atlas-star atlas-star-${star.size} atlas-star-${star.color} atlas-star-${star.shape}${selectedStarId === star.id ? " atlas-star-selected" : ""}${draftConstellationStarIds.includes(star.id) ? " atlas-star-linked" : ""}${selectedResonanceActive && selectedResonanceStarIds.has(star.id) ? " atlas-star-resonant" : ""}${selectedResonanceActive && selectedStarId !== star.id && !selectedResonanceStarIds.has(star.id) ? " atlas-star-muted" : ""}${draggingStarId === star.id ? " atlas-star-dragging" : ""}`}
                 style={{ left: `${star.x}%`, top: `${star.y}%`, color: starColorValue(star.color, star.customColor), "--twinkle-delay": `${(index % 7) * 0.34}s`, "--twinkle-duration": `${3.8 + (index % 4) * 0.52}s` } as CSSProperties}
                 title={star.title}
                 type="button"
@@ -2424,9 +3433,9 @@ export function App() {
               >
                 {activeSky.showTitles && star.showTitle ? <span className={`star-label label-${titleSides[star.id] ?? "bottom"}`}>{star.title}</span> : null}
               </motion.button>
-            ))}
+                ))}
 
-            <AnimatePresence>
+                <AnimatePresence>
               {birthEffect && birthEffect.star.skyId === activeSkyId ? (
                 <div key={birthEffect.star.id} className="ritual-layer">
                   <motion.div
@@ -2483,16 +3492,18 @@ export function App() {
                   />
                 </div>
               ) : null}
-            </AnimatePresence>
+                </AnimatePresence>
+              </>
+            )}
           </div>
         </div>
 
-        <aside className="inspector-panel">
-          <div className="inspector-panel-body">
+        <aside className={`inspector-panel${inspectorEditingMode ? " inspector-panel-editing" : ""}`}>
+          <div className={`inspector-panel-body${inspectorEditingMode ? " inspector-panel-body-editing" : ""}`}>
           {constellationMode ? (
             <>
               <section className="inspector-card">
-                <p className="panel-label">{editingConstellation ? "Editar constelacion" : "Modo constelacion"}</p>
+                  <p className="panel-label">{editingConstellation ? "Editar constelacion" : "Nueva constelacion"}</p>
 
                 <label htmlFor="constellation-name">Nombre</label>
                 <input
@@ -2514,7 +3525,10 @@ export function App() {
                       const star = activeStars.find((item) => item.id === starId);
                       return star ? (
                         <button key={star.id} className="selection-pill" onClick={() => setDraftConstellationStarIds((current) => current.filter((id) => id !== star.id))} type="button">
-                          {star.title}
+                          <span className="selection-pill-text">{star.title}</span>
+                          <span aria-hidden="true" className="selection-pill-remove">
+                            ×
+                          </span>
                         </button>
                       ) : null;
                     })
@@ -2555,9 +3569,9 @@ export function App() {
                           <span>{constellation.starIds.length} estrellas</span>
                         </div>
                         <div className="constellation-item-actions">
-                          <button className="mini-tool-button constellation-item-action" onClick={() => beginEditConstellation(constellation.id)} type="button">
-                            ✎ Editar
-                          </button>
+                        <button className="mini-tool-button constellation-item-action" onClick={() => beginEditConstellation(constellation.id)} type="button">
+                          ✎ Editar
+                        </button>
                           <button className="mini-tool-button constellation-item-action" onClick={() => requestDeleteConstellation(constellation.id)} type="button">
                             {"\u{1F5D1} Borrar"}
                           </button>
@@ -2592,7 +3606,14 @@ export function App() {
                       <button className="mini-tool-button" onClick={beginEditSelectedStar} type="button">
                         ✎ Editar
                       </button>
-                      <button className="mini-tool-button" onClick={() => setSelectedStarId(null)} type="button">
+                      <button
+                        className="mini-tool-button"
+                        onClick={() => {
+                          setSelectedStarId(null);
+                          setInspectorHomeView("neutral");
+                        }}
+                        type="button"
+                      >
                         ✕ Cerrar
                       </button>
                     </div>
@@ -2605,7 +3626,7 @@ export function App() {
                   <>
                     {selectedStarHasDistinctNote ? (
                       <div className="reading-note">
-                        <p>{selectedStar.note}</p>
+                        <p>{renderResonantText(selectedStar.note)}</p>
                       </div>
                     ) : null}
 
@@ -2614,18 +3635,25 @@ export function App() {
                       <p><strong>Forma:</strong> {shapeText(selectedStar.shape)} · <strong>Tamano:</strong> {sizeText(selectedStar.size)}</p>
                       <p><strong>Creada:</strong> {formatDate(selectedStar.createdAt)}</p>
                     </div>
-
-                    <div className="subtle-link-row">
-                      <button className="subtle-link-button" onClick={requestMoveSelectedStar} type="button">
-                        {"\u2197 Mover de cielo"}
-                      </button>
-                      <button className="subtle-link-button" onClick={openJournal} type="button">
-                        {"\u{1F4DD} Abrir en diario"}
-                      </button>
-                    </div>
                   </>
                 )}
               </section>
+
+              {!editingSelectedStar ? renderResonanceSection(selectedStarResonances) : null}
+
+              {!editingSelectedStar ? (
+                <section className="inspector-card inspector-actions-card">
+                  <p className="panel-label">Acciones</p>
+                  <div className="subtle-link-row subtle-link-row-actions">
+                    <button className="subtle-link-button" onClick={requestMoveSelectedStar} type="button">
+                      {"\u2197 Mover de cielo"}
+                    </button>
+                    <button className="subtle-link-button subtle-link-button-accent" onClick={openJournal} type="button">
+                      {"\u{1F4DD} Abrir en diario"}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
 
               <section className="inspector-card">
                 <p className="panel-label">Relacion con el cielo</p>
@@ -2690,6 +3718,24 @@ export function App() {
                       onChange={(event) => setComposer((current) => ({ ...current, note: event.target.value }))}
                     />
 
+                    {activeConstellations.length > 0 ? (
+                      <>
+                        <label htmlFor="composer-constellation">Constelacion</label>
+                        <select
+                          id="composer-constellation"
+                          value={composer.constellationId}
+                          onChange={(event) => setComposer((current) => ({ ...current, constellationId: event.target.value }))}
+                        >
+                          <option value="">No anadir a ninguna</option>
+                          {activeConstellations.map((constellation) => (
+                            <option key={constellation.id} value={constellation.id}>
+                              {constellation.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    ) : null}
+
                     <div className="field-meta">
                       <span className={composer.title.length > SOFT_TITLE ? "field-warning" : ""}>{composer.title.length}/{MAX_TITLE}</span>
                       <span className={composer.note.length > SOFT_NOTE ? "field-warning" : ""}>{composer.note.length}/{MAX_NOTE}</span>
@@ -2707,12 +3753,12 @@ export function App() {
                 </section>
               ) : null}
 
-              <section className="inspector-card">
-                <div className="card-title-row">
-                  <div>
-                    <h2>{displaySkyName(activeSky.name)}</h2>
-                  </div>
-                  {editingSky ? (
+              {editingSky ? (
+                <section className="inspector-card">
+                  <div className="card-title-row">
+                    <div>
+                      <h2>{displaySkyName(activeSky.name)}</h2>
+                    </div>
                     <div className="card-title-actions">
                       <button
                         className="mini-tool-button mini-tool-button-danger mini-tool-button-icon"
@@ -2727,15 +3773,9 @@ export function App() {
                         ✕ Cerrar
                       </button>
                     </div>
-                  ) : (
-                    <button className="mini-tool-button" onClick={beginEditSky} type="button">
-                      ✎ Editar
-                    </button>
-                  )}
-                </div>
+                  </div>
 
-                {editingSky && skyEditor ? (
-                  <>
+                  {skyEditor ? (
                     <div className="editor-shell">
                       <section className="editor-section">
                         <div className="editor-section-head">
@@ -2762,7 +3802,6 @@ export function App() {
                       <section className="editor-section">
                         <div className="editor-section-head">
                           <span className="editor-label">Tema</span>
-                          <p className="editor-hint">Elige el ambiente visual general del cielo activo.</p>
                         </div>
 
                         <div className="theme-current-row" data-theme={skyEditor.theme}>
@@ -2813,63 +3852,113 @@ export function App() {
                         </button>
                       </div>
                     </div>
-                  </>
-                ) : (
-                  <>
+                  ) : null}
+                </section>
+              ) : inspectorHomeView === "sky" ? (
+                <>
+                  <section className="inspector-card">
+                    <div className="card-title-row">
+                      <div>
+                        <h2>{displaySkyName(activeSky.name)}</h2>
+                      </div>
+                      <div className="card-title-actions">
+                        <button className="mini-tool-button" onClick={beginEditSky} type="button">
+                          ✎ Editar
+                        </button>
+                        <button className="mini-tool-button" onClick={() => setInspectorHomeView("neutral")} type="button">
+                          ✕ Cerrar
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="info-lines">
                       <p><strong>Capacidad:</strong> {activeStars.length}/{activeSky.capacity} estrellas.</p>
                       <p><strong>Constelaciones:</strong> {activeConstellations.length} tejidas.</p>
                       <p><strong>Tema:</strong> {themeText(activeSky.theme)}.</p>
                     </div>
+                  </section>
 
-                    <p className="inspector-helper">Constelaciones tejidas en este cielo</p>
-                    <div className="constellation-list">
-                      {activeConstellations.length > 0 ? (
-                        activeConstellations.map((constellation) => (
-                          <div key={constellation.id} className="constellation-item">
-                            <div className="constellation-item-copy">
-                              <strong>{constellation.name}</strong>
-                              <span>{constellation.starIds.length} estrellas</span>
-                            </div>
-                            <div className="constellation-item-actions">
-                              <button className="mini-tool-button constellation-item-action" onClick={() => beginEditConstellation(constellation.id)} type="button">
-                                ✎ Editar
-                              </button>
-                              <button className="mini-tool-button constellation-item-action" onClick={() => requestDeleteConstellation(constellation.id)} type="button">
-                                {"\u{1F5D1} Borrar"}
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="selection-empty">Aun no has tejido constelaciones en este cielo.</p>
-                      )}
+                  <section className="inspector-card inspector-actions-card">
+                    <p className="panel-label">Acciones</p>
+                    <div className="subtle-link-row subtle-link-row-actions">
+                      <button className="subtle-link-button subtle-link-button-accent" onClick={focusComposer} type="button">
+                        {"\u2726 Nueva estrella"}
+                      </button>
+                      <button className="subtle-link-button" onClick={startConstellationMode} type="button">
+                        ☄ Nueva constelacion
+                      </button>
                     </div>
-                  </>
-                )}
-              </section>
+                  </section>
+
+                  <section className="inspector-card">
+                    {activeConstellations.length > 0 ? (
+                      <>
+                        <p className="panel-label">Constelaciones</p>
+                        <div className="constellation-list">
+                          {activeConstellations.map((constellation) => (
+                            <div key={constellation.id} className="constellation-item">
+                              <div className="constellation-item-copy">
+                                <strong>{constellation.name}</strong>
+                                <span>{constellation.starIds.length} estrellas</span>
+                              </div>
+                              <div className="constellation-item-actions">
+                                <button className="mini-tool-button constellation-item-action" onClick={() => beginEditConstellation(constellation.id)} type="button">
+                                  ✎ Editar
+                                </button>
+                                <button className="mini-tool-button constellation-item-action" onClick={() => requestDeleteConstellation(constellation.id)} type="button">
+                                  {"\u{1F5D1} Borrar"}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="selection-empty">Aun no has tejido constelaciones en este cielo.</p>
+                    )}
+                  </section>
+                </>
+              ) : (
+                <section className="inspector-card inspector-neutral-card">
+                  <p className="panel-label">SETESTRELO</p>
+                  <h2>Tu panel de cielo está libre.</h2>
+                  <div className="neutral-guide-list">
+                    <p><strong>1. Crea un cielo.</strong> Empieza por abrir uno nuevo en la columna izquierda. Cada cielo puede reunir tareas, ideas, deseos o temas que quieras visualizar.</p>
+                    <p><strong>2. Habítalo.</strong> Dentro de ese cielo puedes añadir estrellas, tejer una nueva constelación o abrir el diario para trabajar tus notas con más calma.</p>
+                    <p><strong>3. Entra en detalle.</strong> Haz clic en una estrella dentro del visor para cargar aquí sus opciones, relaciones y acciones posibles.</p>
+                    <p><strong>4. Activa resonancias.</strong> En el diario puedes escribir referencias como <em>{"{Nombre de otra nota}"}</em> para vincular estrellas y ver sus flujos en el visor.</p>
+                    <p><strong>5. Contempla.</strong> El modo contemplativo hace aparecer tus palabras en el centro del cielo a un ritmo pausado.</p>
+                  </div>
+                  <div className="info-lines">
+                    <p><strong>Propósito:</strong> imaginar, ordenar y acercar lo que todavía cuesta iniciar.</p>
+                    <p><strong>Contacto:</strong> idea y universo visual de Sira Perriki.</p>
+                  </div>
+                </section>
+              )}
             </>
           )}
           </div>
 
-          <div className="inspector-panel-footer">
-            <button
-              className={`toolbar-button toolbar-button-sky inspector-rail-secondary${meditationMode ? " toolbar-button-active" : ""}`}
-              disabled={activeStars.length === 0 && !meditationMode}
-              onClick={() => setMeditationMode((current) => !current)}
-              type="button"
-            >
-              {meditationButtonText}
-            </button>
-            <button
-              className={`toolbar-button toolbar-button-primary inspector-rail-create${composerOpen ? " inspector-rail-create-active" : ""}`}
-              disabled={Boolean(birthEffect) || skyFull}
-              onClick={focusComposer}
-              type="button"
-            >
-              {birthEffect ? "Sembrando luz..." : skyFull ? "✦ Cielo lleno" : "✦ Nueva estrella"}
-            </button>
-          </div>
+          {!inspectorEditingMode ? (
+            <div className="inspector-panel-footer">
+              <button
+                className={`toolbar-button toolbar-button-sky inspector-rail-secondary${meditationMode ? " toolbar-button-active" : ""}`}
+                disabled={activeStars.length === 0 && !meditationMode}
+                onClick={() => setMeditationMode((current) => !current)}
+                type="button"
+              >
+                {meditationButtonText}
+              </button>
+              <button
+                className={`toolbar-button toolbar-button-primary inspector-rail-create${composerOpen ? " inspector-rail-create-active" : ""}`}
+                disabled={Boolean(birthEffect) || skyFull}
+                onClick={focusComposer}
+                type="button"
+              >
+                {birthEffect ? "Sembrando luz..." : skyFull ? "✦ Cielo lleno" : "✦ Nueva estrella"}
+              </button>
+            </div>
+          ) : null}
         </aside>
       </section>
       )}
@@ -2887,7 +3976,7 @@ export function App() {
                   <div className="help-copy">
                     <p>Un cielo es una pagina de tu diario. Dentro de cada cielo guardas estrellas, que son notas breves de manifestacion.</p>
                     <p>Cada estrella tiene un titulo corto para verse en el cielo y una nota mas larga para darle contexto cuando la abres.</p>
-                    <p>Puedes mover las estrellas, cambiar su color y forma, y seleccionar varias para tejer una constelacion manual.</p>
+                    <p>Puedes mover las estrellas, cambiar su color y forma, y seleccionar varias para tejer una nueva constelacion manual.</p>
                     <p>Tambien puedes abrir el modo diario para ver tus entradas como notas ordenadas por fecha y editarlas fuera del cielo.</p>
                     <p>Los datos viven en este navegador. Si borras el almacenamiento local del navegador, el atlas puede perderse.</p>
                     <p>Por eso existe el backup: puedes exportar un archivo .json y volver a importarlo despues.</p>
@@ -3139,6 +4228,22 @@ export function App() {
                     </button>
                   </div>
 
+                  <div className="backup-diagnostics">
+                    <p className="panel-label">Diagnostico local</p>
+                    <div className="backup-diagnostics-grid">
+                      <span>Origen</span>
+                      <strong>{storageOriginText}</strong>
+                      <span>Lectura actual</span>
+                      <strong>{storageSourceText}</strong>
+                      <span>Ultimo guardado</span>
+                      <strong>{storageSavedAt ? formatDateTime(storageSavedAt) : "Aun sin sello"}</strong>
+                      <span>Contenido</span>
+                      <strong>
+                        {skies.length} cielos · {stars.length} estrellas · {constellations.length} constelaciones
+                      </strong>
+                    </div>
+                  </div>
+
                   {importMessage ? <p className="backup-message">{importMessage}</p> : null}
 
                   <button className="toolbar-button toolbar-button-ghost" onClick={closeOverlay} type="button">
@@ -3152,6 +4257,33 @@ export function App() {
       </AnimatePresence>
 
       <input accept="application/json" hidden ref={importInputRef} type="file" onChange={handleImportFile} />
+      {skyMenuId ? (
+        <div
+          className={`sky-tab-menu sky-tab-menu-floating${skyMenuPlacement === "up" ? " sky-tab-menu-up" : ""}`}
+          style={skyMenuCoords ? { top: skyMenuCoords.top, left: skyMenuCoords.left } : undefined}
+        >
+          {(() => {
+            const menuSky = skies.find((item) => item.id === skyMenuId);
+            if (!menuSky) return null;
+            return (
+              <>
+                <button className="sky-tab-menu-item" onClick={() => openSkyMenuAction(menuSky.id, "composer")} type="button">
+                  ✦ Nueva estrella
+                </button>
+                <button className="sky-tab-menu-item" onClick={() => openSkyMenuAction(menuSky.id, "constellation")} type="button">
+                  ☄ Nueva constelacion
+                </button>
+                <button className="sky-tab-menu-item" onClick={() => toggleSkyTitles(menuSky.id)} type="button">
+                  {menuSky.showTitles ? "🏷 Titulos: si" : "🏷 Titulos: no"}
+                </button>
+                <button className="sky-tab-menu-item" disabled={skies.length <= 1} onClick={() => requestDeleteSky(menuSky.id)} type="button">
+                  {"\u{1F5D1} Eliminar cielo"}
+                </button>
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
     </main>
   );
 }
