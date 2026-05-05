@@ -1011,6 +1011,122 @@
   pointer-events: none;
 }
 
+.guide-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 6px 0;
+}
+
+.guide-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px 18px;
+  padding: 6px 20px 0;
+}
+
+.guide-header-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.guide-header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2vw, 2.12rem);
+  line-height: 0.98;
+  color: color-mix(in srgb, var(--paper-ui) 88%, var(--accent-sand));
+}
+
+.guide-intro {
+  margin: 0;
+  max-width: 62ch;
+  color: color-mix(in srgb, var(--ink-muted) 74%, var(--paper-ui));
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.guide-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.guide-flow {
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 20px 14px;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(176, 109, 148, 0.44) rgba(42, 24, 69, 0.18);
+}
+
+.guide-flow::-webkit-scrollbar {
+  width: 8px;
+}
+
+.guide-flow::-webkit-scrollbar-track {
+  background: rgba(42, 24, 69, 0.18);
+  border-radius: 999px;
+}
+
+.guide-flow::-webkit-scrollbar-thumb {
+  background: rgba(176, 109, 148, 0.42);
+  border-radius: 999px;
+}
+
+.guide-section {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.guide-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.guide-section h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.08rem, 1.45vw, 1.34rem);
+  line-height: 1.16;
+  color: color-mix(in srgb, var(--paper-ui) 84%, var(--accent-sand));
+}
+
+.guide-section p,
+.guide-section li {
+  margin: 0;
+  color: color-mix(in srgb, var(--ink-muted) 82%, var(--paper-ui));
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.guide-steps {
+  margin: 2px 0 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 8px;
+}
+
+.guide-section em,
+.guide-section strong,
+.guide-section code {
+  color: color-mix(in srgb, var(--paper-ui) 90%, var(--accent-sand));
+}
+
+.guide-signoff {
+  margin-top: 4px;
+  font-style: italic;
+  color: color-mix(in srgb, var(--ink-muted) 72%, var(--accent-mint));
+}
+
 .journal-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2333,6 +2449,55 @@
 
 .atlas-star-lucero::before {
   clip-path: polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0% 50%, 38% 38%);
+}
+
+.atlas-star-comet::before {
+  inset: 26% 18% 26% 54%;
+  border-radius: 999px;
+  background: radial-gradient(circle at 42% 50%, rgba(255, 255, 255, 0.95), currentColor 64%);
+  box-shadow:
+    0 0 12px currentColor,
+    0 0 22px color-mix(in srgb, currentColor 36%, transparent);
+}
+
+.atlas-star-comet::after {
+  inset: 34% 34% 34% -6%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 0%, transparent) 0%,
+    color-mix(in srgb, currentColor 18%, transparent) 26%,
+    color-mix(in srgb, currentColor 46%, transparent) 62%,
+    color-mix(in srgb, currentColor 88%, transparent) 100%
+  );
+  transform: rotate(-18deg);
+  transform-origin: right center;
+  filter: blur(0.9px);
+}
+
+.atlas-star-flower::before {
+  clip-path: polygon(
+    50% 6%,
+    60% 18%,
+    76% 14%,
+    74% 30%,
+    90% 40%,
+    78% 50%,
+    90% 60%,
+    74% 70%,
+    76% 86%,
+    60% 82%,
+    50% 94%,
+    40% 82%,
+    24% 86%,
+    26% 70%,
+    10% 60%,
+    22% 50%,
+    10% 40%,
+    26% 30%,
+    24% 14%,
+    40% 18%
+  );
 }
 
 .atlas-star-heart::before {
@@ -3902,14 +4067,87 @@
   margin: 0;
 }
 
+.journal-detail-card .editor-shell {
+  width: min(100%, 640px);
+  justify-self: start;
+  gap: 10px;
+}
+
 .journal-detail-card .editor-section {
-  border-color: rgba(174, 104, 113, 0.12);
+  gap: 9px;
+  width: 100%;
+  justify-self: stretch;
+  padding: 14px 18px 16px;
+  border-color: rgba(174, 104, 113, 0.24);
+  border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 252, 245, 0.7), rgba(243, 231, 211, 0.34)),
-    rgba(255, 249, 240, 0.3);
+    linear-gradient(180deg, rgba(255, 252, 245, 0.92), rgba(243, 231, 211, 0.62)),
+    rgba(255, 249, 240, 0.68);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.64),
-    0 6px 16px rgba(87, 61, 77, 0.04);
+    0 8px 18px rgba(87, 61, 77, 0.06);
+}
+
+.journal-detail-card .editor-note-head,
+.journal-detail-card .editor-custom-row {
+  align-items: center;
+}
+
+.journal-detail-card .editor-symbol-trigger,
+.journal-detail-card .mini-tool-button {
+  min-height: 24px;
+  padding: 0 9px;
+  font-size: 0.64rem;
+}
+
+.journal-detail-card .editor-symbol-picker {
+  gap: 5px;
+  margin-top: 0;
+  max-width: 100%;
+}
+
+.journal-detail-card .editor-symbol-chip {
+  min-width: 28px;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 0.88rem;
+  border-color: rgba(123, 65, 95, 0.26);
+  background: rgba(255, 250, 242, 0.98);
+  color: rgb(96, 56, 86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.journal-detail-card .editor-custom-row {
+  grid-template-columns: auto auto;
+  justify-content: start;
+  column-gap: 12px;
+}
+
+.journal-detail-card .editor-color-picker {
+  width: 72px;
+  min-width: 72px;
+  min-height: 32px;
+}
+
+.journal-detail-card .editor-select-grid {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: start;
+  gap: 8px;
+}
+
+.journal-detail-card .inline-toggle {
+  width: auto;
+  min-height: 32px;
+  padding: 0 14px;
+  justify-content: center;
+  align-self: start;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(241, 230, 213, 0.92)),
+    #fbf1df;
+  border-color: rgba(123, 65, 95, 0.2);
+  color: rgb(88, 63, 92);
 }
 
 .journal-detail-card .editor-hint {
@@ -3917,7 +4155,11 @@
 }
 
 .journal-detail-card .editor-preview-card {
-  border-color: rgba(174, 104, 113, 0.14);
+  width: 100%;
+  justify-self: stretch;
+  padding: 14px 18px;
+  border-color: rgba(174, 104, 113, 0.2);
+  border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(255, 247, 236, 0.96), rgba(234, 220, 224, 0.92)),
     #f7eee1;
@@ -3980,12 +4222,63 @@
   color: rgba(96, 73, 96, 0.88);
 }
 
+.journal-detail-card .button-row-editor {
+  gap: 10px;
+  padding-top: 0;
+  width: 100%;
+}
+
+.journal-detail-card .button-row-editor .toolbar-button {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 0.74rem;
+  width: auto;
+  flex: 0 0 auto;
+}
+
 .journal-detail-card .inline-toggle-active {
   background:
     linear-gradient(180deg, rgba(255, 243, 248, 0.94), rgba(244, 233, 215, 0.9)),
     #fbf0e8;
   border-color: rgba(176, 109, 148, 0.24);
   color: rgb(64, 50, 114);
+}
+
+.journal-detail-card .panel-label,
+.journal-detail-card .editor-label,
+.journal-detail-card label {
+  color: rgba(114, 62, 92, 0.96);
+}
+
+.journal-detail-card .field-meta {
+  width: 100%;
+}
+
+.journal-detail-card input,
+.journal-detail-card textarea,
+.journal-detail-card select {
+  color: rgb(64, 50, 114);
+  border-color: rgba(174, 104, 113, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(244, 233, 214, 0.94)),
+    #fff7eb;
+}
+
+.journal-detail-card .editor-section-head .editor-label,
+.journal-detail-card .panel-label {
+  letter-spacing: 0.18em;
+}
+
+.journal-detail-card .toolbar-button-ghost {
+  border-color: rgba(123, 65, 95, 0.22);
+  background: rgba(232, 222, 206, 0.92);
+  color: rgb(110, 84, 102);
+}
+
+.journal-detail-card .toolbar-button-primary {
+  border-color: rgba(236, 129, 109, 0.32);
+  background: rgba(236, 129, 109, 0.96);
+  color: rgb(76, 38, 52);
 }
 
 .backup-message {
@@ -5926,6 +6219,62 @@
   gap: 4px;
 }
 
+.editor-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor-note-head label {
+  margin: 0;
+}
+
+.editor-symbol-trigger {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 0.68rem;
+  border-radius: 999px;
+}
+
+.editor-symbol-trigger-active {
+  background: rgba(236, 129, 109, 0.14);
+  border-color: rgba(236, 129, 109, 0.24);
+  color: color-mix(in srgb, var(--paper-ui) 88%, var(--accent-coral));
+}
+
+.editor-symbol-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -2px;
+}
+
+.editor-symbol-chip {
+  min-width: 32px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(130, 111, 171, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: color-mix(in srgb, var(--paper-ui) 88%, var(--accent-sand));
+  font-size: 0.96rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.editor-symbol-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(236, 129, 109, 0.24);
+  background: rgba(236, 129, 109, 0.08);
+  color: color-mix(in srgb, var(--paper-ui) 90%, var(--accent-coral));
+}
+
 .editor-hint,
 .inspector-helper,
 .selection-empty {
@@ -5956,13 +6305,14 @@
   position: relative;
   display: flex;
   align-items: center;
+  z-index: 220;
 }
 
 .toolbar-viewport-panel {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 120;
+  z-index: 360;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -6004,6 +6354,36 @@
 .toolbar-viewport-wrap-open .toolbar-viewport-trigger {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 201, 133, 0.16);
+}
+
+.top-toolbar {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background:
+    linear-gradient(180deg, rgba(108, 64, 134, 0.08), rgba(42, 24, 69, 0.18)),
+    transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.top-toolbar::after {
+  display: none !important;
+}
+
+.app-shell[data-surface="journal"] .top-toolbar {
+  border: 0 !important;
+  background:
+    linear-gradient(180deg, rgba(201, 128, 141, 0.08), rgba(129, 73, 102, 0.14)),
+    transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell[data-surface="guide"] .top-toolbar {
+  border: 0 !important;
+  background:
+    linear-gradient(180deg, rgba(170, 110, 141, 0.08), rgba(65, 34, 93, 0.18)),
+    transparent !important;
+  box-shadow: none !important;
 }
 
 .resonance-layer {

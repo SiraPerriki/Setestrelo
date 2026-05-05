@@ -16,7 +16,7 @@ import {
 type SkyTheme = "night" | "rose" | "dawn" | "aurora" | "midnight" | "ember" | "lagoon" | "gaia" | "rings" | "venus" | "mercury" | "eclipse" | "abyss";
 type Tone = "gold" | "pearl" | "coral" | "sky" | "rose" | "mint" | "violet" | "custom";
 type StarSize = "s" | "m" | "l";
-type StarShape = "orb" | "diamond" | "spark" | "heart" | "lucero";
+type StarShape = "orb" | "diamond" | "spark" | "heart" | "lucero" | "comet" | "flower";
 type LabelMode = "titles" | "hidden";
 type LabelSide = "top" | "bottom" | "left" | "right";
 
@@ -183,6 +183,7 @@ const MAX_TITLE = 48;
 const SOFT_TITLE = 32;
 const MAX_NOTE = 800;
 const SOFT_NOTE = 420;
+const STAR_NOTE_SYMBOLS = ["✦", "✧", "★", "☆", "☾", "☽", "🌙", "✨", "♡", "♥", "💗", "❀", "❁", "→", "↔", "•", "◦", "○"];
 const MIN_DISTANCE = 12;
 const CONSTELLATION_JOIN_THRESHOLD = 5.4;
 const BIRTH_ADD_MS = 1320;
@@ -190,9 +191,9 @@ const BIRTH_END_MS = 2100;
 const THEMES: SkyTheme[] = ["night", "rose", "dawn", "aurora", "midnight", "ember", "lagoon", "gaia", "rings", "venus", "mercury", "eclipse", "abyss"];
 const COLORS: Tone[] = ["pearl", "gold", "coral", "sky", "rose", "mint", "violet"];
 const SIZES: StarSize[] = ["m", "s", "l", "m"];
-const SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero"];
+const SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero", "comet", "flower"];
 const EDITOR_SIZES: StarSize[] = ["s", "m", "l"];
-const EDITOR_SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero"];
+const EDITOR_SHAPES: StarShape[] = ["orb", "diamond", "spark", "heart", "lucero", "comet", "flower"];
 const THEME_GROUPS: Array<{ label: string; themes: SkyTheme[] }> = [
   { label: "Claros", themes: ["night", "rose", "dawn", "aurora"] },
   { label: "Profundos", themes: ["midnight", "ember", "eclipse", "abyss"] },
@@ -461,7 +462,7 @@ function normalizeSize(value: unknown): StarSize {
 }
 
 function normalizeShape(value: unknown): StarShape {
-  return ["orb", "diamond", "spark", "heart", "lucero"].includes(String(value)) ? (value as StarShape) : "orb";
+  return ["orb", "diamond", "spark", "heart", "lucero", "comet", "flower"].includes(String(value)) ? (value as StarShape) : "orb";
 }
 
 function starColorValue(color: Tone, customColor: string | null = null) {
@@ -664,8 +665,10 @@ function calculateMoonPhase(date: Date): MoonPhase {
 function shapeText(shape: StarShape) {
   if (shape === "orb") return "orbe";
   if (shape === "diamond") return "rombo";
-  if (shape === "heart") return "corazon";
+  if (shape === "heart") return "corazón";
   if (shape === "lucero") return "lucero";
+  if (shape === "comet") return "cometa";
+  if (shape === "flower") return "flor estelar";
   return "chispa";
 }
 
@@ -1150,11 +1153,13 @@ export function App() {
   const [showResonances, setShowResonances] = useState(true);
   const [viewportControlsOpen, setViewportControlsOpen] = useState(false);
   const [skyMenuCoords, setSkyMenuCoords] = useState<{ top: number; left: number } | null>(null);
+  const [starSymbolPickerOpen, setStarSymbolPickerOpen] = useState(false);
 
   const skyPanelRef = useRef<HTMLDivElement | null>(null);
   const skyRailRef = useRef<HTMLDivElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const composerTitleRef = useRef<HTMLInputElement | null>(null);
+  const starNoteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
   const renderedStarsRef = useRef<Star[]>([]);
   const activeConstellationsRef = useRef<Constellation[]>([]);
@@ -2238,7 +2243,7 @@ export function App() {
     if (constellationMode) return;
     setSelectedStarId(null);
     setStarEditor(null);
-    setInspectorHomeView("neutral");
+    setInspectorHomeView("sky");
   }
 
   function focusComposer() {
@@ -2308,6 +2313,7 @@ export function App() {
     if (!selectedStar) return;
     setEditingSky(false);
     setSkyEditor(null);
+    setStarSymbolPickerOpen(false);
     setStarEditor({
       id: selectedStar.id,
       title: selectedStar.title,
@@ -2321,6 +2327,7 @@ export function App() {
   }
 
   function cancelStarEditor() {
+    setStarSymbolPickerOpen(false);
     setStarEditor(null);
   }
 
@@ -2336,6 +2343,7 @@ export function App() {
       size: starEditor.size,
       shape: starEditor.shape,
     }));
+    setStarSymbolPickerOpen(false);
     setStarEditor(null);
   }
 
@@ -2435,6 +2443,26 @@ export function App() {
     );
   }
 
+  function insertSymbolIntoStarNote(symbol: string) {
+    if (!starEditor) return;
+
+    const textarea = starNoteTextareaRef.current;
+    const currentNote = starEditor.note;
+    const selectionStart = textarea?.selectionStart ?? currentNote.length;
+    const selectionEnd = textarea?.selectionEnd ?? currentNote.length;
+    const nextNote = `${currentNote.slice(0, selectionStart)}${symbol}${currentNote.slice(selectionEnd)}`;
+
+    setStarEditor((current) => (current ? { ...current, note: nextNote } : current));
+
+    window.requestAnimationFrame(() => {
+      const input = starNoteTextareaRef.current;
+      if (!input) return;
+      const nextCursor = selectionStart + symbol.length;
+      input.focus();
+      input.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
   function renderStarEditorForm(prefix: string) {
     if (!starEditor) return null;
 
@@ -2454,10 +2482,34 @@ export function App() {
             onChange={(event) => setStarEditor((current) => (current ? { ...current, title: event.target.value } : current))}
           />
 
-          <label htmlFor={`${prefix}-edit-note`}>Nota</label>
+          <div className="editor-note-head">
+            <label htmlFor={`${prefix}-edit-note`}>Nota</label>
+            <button
+              className={`mini-tool-button editor-symbol-trigger${starSymbolPickerOpen ? " editor-symbol-trigger-active" : ""}`}
+              onClick={() => setStarSymbolPickerOpen((current) => !current)}
+              type="button"
+            >
+              ✦ Símbolos
+            </button>
+          </div>
+          {starSymbolPickerOpen ? (
+            <div className="editor-symbol-picker" role="group" aria-label="Insertar símbolos en la nota">
+              {STAR_NOTE_SYMBOLS.map((symbol) => (
+                <button
+                  key={symbol}
+                  className="editor-symbol-chip"
+                  onClick={() => insertSymbolIntoStarNote(symbol)}
+                  type="button"
+                >
+                  {symbol}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <textarea
             id={`${prefix}-edit-note`}
             maxLength={MAX_NOTE}
+            ref={starNoteTextareaRef}
             rows={6}
             value={starEditor.note}
             onChange={(event) => setStarEditor((current) => (current ? { ...current, note: event.target.value } : current))}
@@ -3268,10 +3320,18 @@ export function App() {
                 <div className="sky-nebula sky-nebula-c" />
 
                 {showSkyGuide ? (
-              <div className="sky-focus-guide">
+              <div
+                className="sky-focus-guide"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 <button
                   aria-label="Cerrar ayuda del cielo"
                   className="sky-guide-close"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
                   onClick={(event) => {
                     event.stopPropagation();
                     setDismissedSkyGuides((current) => (current.includes(activeSkyId) ? current : [...current, activeSkyId]));
